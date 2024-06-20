@@ -18,9 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Set, Iterable, Dict
 
-from . import log
-from . import consts
-from . import helpers, time
+from . import consts, helpers, time, log
 from .classes import Version
 from .helpers import Executable
 from .templates import batch_job, persistent_volume_claim, daemonset

@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from .. import consts
-from .. import configer
+from .. import consts, configer
 
 
 def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] = None, filename: Optional[str] = None):

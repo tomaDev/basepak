@@ -6,8 +6,7 @@ from typing import Optional
 import click
 import ruyaml as yaml
 
-from . import consts
-from . import log
+from . import consts, log
 
 
 def validate_spec_keys_are_dicts(manifest: dict[str, any]) -> None:

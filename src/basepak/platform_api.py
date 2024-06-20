@@ -8,14 +8,12 @@ import sys
 import time
 from functools import partial
 from typing import Tuple, Optional, Dict, List, Mapping, Union, Sequence, Callable, Iterable
-from tenacity import retry, wait_fixed, retry_if_exception_type, stop_after_delay
 
 import requests
+from tenacity import retry, wait_fixed, retry_if_exception_type, stop_after_delay
 
-from . import log
-from . import consts
-from . import exceptions
-from . import helpers, classes
+from . import exceptions  # noqa missing
+from . import helpers, classes, consts, log
 from .abstract_classes import Eventer
 from .credentials import Credentials
 from .units import Unit

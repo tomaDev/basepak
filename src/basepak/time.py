@@ -1,8 +1,7 @@
 import functools
 import re
 import time
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 DEFAULT_FORMAT = '%Y-%m-%dt%H-%M-%S'

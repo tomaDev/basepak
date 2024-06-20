@@ -6,9 +6,7 @@ from typing import Optional, AnyStr
 import click
 import psutil
 
-from . import log
-from . import __name__ as package_name
-from . import helpers
+from . import __name__ as package_name, helpers, log
 
 # Click's native shell_completion.py in v8.1 uses `complete -o nosort`, which is supported by bash 4.4+
 # Iguazio CentOS7 uses bash 4.2.46, so the Click native completion generation script fails

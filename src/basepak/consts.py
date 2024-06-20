@@ -1,18 +1,7 @@
 import os
 
+from .classes import ConstMeta
 from .__about__ import __version__ as package_version
-
-
-class _ConstMeta(type):  # classes in consts should be immutable
-    def __setattr__(cls, key, value):
-        if key in cls.__dict__:
-            raise AttributeError(f"Cannot modify constant attribute '{key}'")
-        super().__setattr__(key, value)
-
-    def __delattr__(cls, key):
-        if key in cls.__dict__:
-            raise AttributeError(f"Cannot delete constant attribute '{key}'")
-        super().__delattr__(cls, key)
 
 
 ##############################################################################################################
@@ -25,12 +14,12 @@ SHELLS = ('auto', 'bash', 'zsh')  # for completions. SHELLS[0] is the default
 # ### Iguazio API ###
 
 
-class ClusterStatusActionMap(metaclass=_ConstMeta):
+class ClusterStatusActionMap(metaclass=ConstMeta):
     CONTINUE = ('online', 'degraded', 'onlineMaintenance', 'readOnly')
     RETRY = ('unknown', 'upgrading', 'standby', 'maintenance')  # just in case we decide to implement retry
 
 
-class APIRoutes(metaclass=_ConstMeta):
+class APIRoutes(metaclass=ConstMeta):
     BASE = 'http://{}:8001/api'  # noqa: used in string formatting
     SESSIONS = '/sessions'
     FETCH_SESSIONS = '/fetch_sessions'
@@ -56,7 +45,7 @@ KOMPTON_INVENTORY_HOSTS_PATH_PATTERN = KOMPTON_DEPLOY_PATH_PATTERN + '/inventory
 KUBE_CONFIG_DEFAULT_LOCATION = os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))
 
 
-class LabelSelectors(metaclass=_ConstMeta):
+class LabelSelectors(metaclass=ConstMeta):
     MLRUN_DB = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component=db'
     MLRUN_DEPLOYMENTS = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component=api'
     PIPELINES_DB = 'app=pipelines,component=mysql-kf'
@@ -66,7 +55,7 @@ class LabelSelectors(metaclass=_ConstMeta):
     CONFIGMAPS = 'app.kubernetes.io/managed-by!=Helm,nuclio.io/app!=functionres,!mlrun/class'  # noqa: typo
 
 
-class FieldSelectors(metaclass=_ConstMeta):
+class FieldSelectors(metaclass=ConstMeta):
     CONFIGMAPS = 'metadata.name!=kube-root-ca.crt'
     SECRETS = 'type!=kubernetes.io/service-account-token,' \
               'type!=helm.sh/release.v1,' \

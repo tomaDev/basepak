@@ -5,7 +5,23 @@ import json
 from dataclasses import dataclass, field
 
 
+class ConstMeta(type):  # classes in consts should be immutable
+    """Metaclass for creating immutable classes
+
+    Inheriting from this class will prevent setting and deleting attributes"""
+    def __setattr__(cls, key, value):
+        if key in cls.__dict__:
+            raise AttributeError(f"Cannot modify constant attribute '{key}'")
+        super().__setattr__(key, value)
+
+    def __delattr__(cls, key):
+        if key in cls.__dict__:
+            raise AttributeError(f"Cannot delete constant attribute '{key}'")
+        super().__delattr__(cls, key)
+
+
 class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime objects"""
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()

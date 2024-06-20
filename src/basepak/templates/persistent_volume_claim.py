@@ -1,6 +1,6 @@
 from typing import Dict
-from .. import consts
-from .. import configer
+
+from .. import consts, configer
 
 
 def generate_template(params: Dict[str, any]):

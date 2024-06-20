@@ -11,7 +11,7 @@ from dotenv import dotenv_values
 
 from . import log
 from .helpers import Executable
-
+from . import __name__ as package_name
 
 @functools.lru_cache()
 def load_from_dotenv(dotenv_path: Optional[str] = None) -> Dict[str, str]:

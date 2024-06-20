@@ -4,8 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional, Mapping
 
-from .. import consts
-from .. import configer, time, helpers
+from .. import consts, configer, time, helpers
 
 POD_SPEC_DEFAULT = {  # not extracting this to consts module, as it's not used anywhere else
     # OnFailure - container restarts in the same pod on the same node.

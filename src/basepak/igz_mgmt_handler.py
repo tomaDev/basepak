@@ -6,9 +6,7 @@ import igz_mgmt
 from igz_mgmt import exceptions as igz_mgmt_exceptions
 from tenacity import retry, wait_exponential, stop_after_attempt
 
-from . import consts
-from . import log
-from . import time, platform_api
+from . import consts, log, time, platform_api
 from .credentials import Credentials
 
 
