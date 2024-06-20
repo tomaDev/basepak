@@ -5,7 +5,6 @@ import re
 import shutil
 from functools import lru_cache, partial
 
-import click
 import rich
 from rich.logging import RichHandler
 
@@ -123,10 +122,3 @@ def get_logger(name: str = None, level: str | int = logging.INFO) -> logging.Log
         logger.setLevel(logging.getLevelName(level) if isinstance(level, int) else level.upper())
 
     return logger
-
-
-option_logger = click.option('--logger', 'logger_name',  help='logger type', default='short',
-                             type=click.Choice(SUPPORTED_LOGGERS.keys()), show_default=True)  # noqa
-
-option_log_level = click.option('-v', '--log-level', show_default=True, default='info',
-                                type=click.Choice(['warning', 'info', 'debug']))
