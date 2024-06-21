@@ -4,6 +4,7 @@ import logging
 import re
 import shutil
 from functools import lru_cache, partial
+from typing import Optional
 
 import rich
 from rich.logging import RichHandler
@@ -32,7 +33,7 @@ rich.reconfigure(
 Table = partial(rich.table.Table, header_style='bold magenta')  # noqa
 
 
-def redact_str(string: str, mask: str = '*', plaintext_suffix_length: int = 4) -> str:
+def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:
     if len(string) <= plaintext_suffix_length:
         return mask * len(string)
     redacted = (mask if char not in ('-', ' ') else char for char in string[:-plaintext_suffix_length])
@@ -106,19 +107,20 @@ def name_to_handler(name: str) -> logging.StreamHandler:
 
 
 @lru_cache()
-def get_logger(name: str = None, level: str | int = logging.INFO) -> logging.Logger:
+def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
     """Retrieve or create a globally scoped logger based on the given name and level
 
-    @param level: Logging level as a string or int (e.g. 'INFO' or logging.INFO)
-    @param name: Name of the logger, which dictates its configuration.
+    @param name: Name of the logger, which dictates its configuration. Default is 'short'.
+    @param level: Log level for the logger. If None, will adopt level of first found existing logger. Default is INFO.
     @return logger: Configured logger instance
     """
-    if not name:
-        name = 'short'
+    name = name or 'short'
+    if name in LOGGERS:
+        return logging.getLogger(name)
+    level = level or (logging.INFO if not LOGGERS else logging.getLogger(next(iter(LOGGERS))).getEffectiveLevel())
     logger = logging.getLogger(name)
-    if name not in LOGGERS:
-        LOGGERS.add(name)
-        logger.addHandler(name_to_handler(name))
-        logger.setLevel(logging.getLevelName(level) if isinstance(level, int) else level.upper())
+    logger.addHandler(name_to_handler(name))
+    logger.setLevel(logging.getLevelName(level) if isinstance(level, int) else level.upper())
 
+    LOGGERS.add(name)
     return logger
