@@ -1,10 +1,8 @@
 import functools
 import os
-from datetime import datetime
 from typing import Optional, AnyStr
 
 import click
-import psutil
 
 from . import __name__ as package_name, helpers, log
 
@@ -97,6 +95,7 @@ def generate_script(
             logger.info(f'Source command exists in {profile_path}\nSkipping')
             return 0
     logger.info(f'Adding source command to {profile_path}')
+    from datetime import datetime
     with open(profile_path, mode='a') as f:
         f.write(f'\n# Added by {display_name} on {datetime.now()}\n{source_cmd}\n')
     logger.info('Done')
@@ -111,6 +110,7 @@ def get_full_path(base_path, default_file) -> AnyStr:
 
 @functools.lru_cache
 def proc_name_best_effort(default: str = '') -> str:
+    import psutil
     try:
         return psutil.Process(os.getpid()).name() or default
     except Exception:  # noqa best effort
@@ -118,6 +118,7 @@ def proc_name_best_effort(default: str = '') -> str:
 
 
 def proc_parent_name_best_effort(default: str = '') -> str:
+    import psutil
     try:
         return psutil.Process(os.getppid()).name() or default
     except Exception:  # noqa best effort

@@ -1,24 +1,23 @@
-import functools
-import os
-
 import click
-import fcntl
-
-from . import log
-from . import __name__ as package_name
 
 
 def group_lock(func):
     """Lock decorator for a single node. Collisions are possible in multi-node, since we allow different steps to run
     from different machines in the same environment. Please avoid scheduling the same step on more than one node"""
+    import functools
+    import os
+    import fcntl
+
+    from . import log
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        logger = log.get_logger(name=kwargs.get('logger_name') or 'long', level=kwargs.get('log_level', 'INFO'))
+        logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
         ctx = next((arg for arg in args if isinstance(arg, click.Context)), None)
         if ctx is None:
             logger.error('ctx argument must be provided')
             raise click.Abort()
-        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or package_name)
+        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
         try:
             os.makedirs(lock_file_dir, exist_ok=True)
         except PermissionError as e:
@@ -43,3 +42,26 @@ def group_lock(func):
         return result
 
     return wrapper
+
+
+def clean_locks(ctx: click.Context):
+    """Forcefully remove lock files. Use with caution!"""
+    from glob import glob
+    import os
+    success = True
+
+    lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
+    paths = glob(os.path.join(lock_file_dir, '*.lock'))
+    if not paths:
+        click.echo('No lock files found')
+        return 0
+    for path in paths:
+        try:
+            os.remove(path)
+            click.echo(path)
+        except Exception as e:  # usually it's a PermissionError
+            success = False
+            click.echo(f'{path}: {e}')
+    if not success:
+        raise click.ClickException('Some lock files could not be removed')
+    return 0

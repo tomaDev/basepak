@@ -4,11 +4,7 @@ import subprocess
 import sys
 from abc import ABC, abstractmethod
 from functools import partial
-
-import click
-import requests
-
-from .stats import Tracker
+from typing import Optional
 
 
 class Eventer(ABC):
@@ -28,6 +24,8 @@ class Eventer(ABC):
 
 class Task(ABC):
     """Generic task class"""
+    import requests
+
     def __init__(
             self,
             name: str,
@@ -50,23 +48,24 @@ class Task(ABC):
     def __call__(self, *args, **kwargs) -> any:
         return self.__init__(*args, **kwargs)
 
-    def post_status(self, status: str = None, *args, **kwargs):
+    def post_status(self, status: Optional[str] = None, *args, **kwargs):
         self.status = status or self.status
         try:
             event = getattr(self.eventer, f'send_{self.status}')
         except AttributeError:
             raise AttributeError(f'Eventer has no method send_{self.status}')
+        from .stats import Tracker
         tracker = Tracker()
         tracker.upsert(task=self.name, phase=self._phase, status=self.status, **kwargs)
         event(self.name, self.get_phase, *args, **kwargs)
 
     @classmethod
-    def monitor_raise_on_fail(cls, print_prefix: str = ''):
+    def monitor_raise_on_fail(cls, print_prefix: Optional[str] = ''):
         """Convenience decorator to manage task phasing and status reporting, and raise on failure"""
         return cls.monitor(print_prefix=print_prefix, raise_on_fail=True)
 
     @classmethod
-    def monitor(cls, print_prefix: str = '', raise_on_fail: bool = False):
+    def monitor(cls, print_prefix: Optional[str] = '', raise_on_fail: Optional[bool] = False):
         """Decorator to manage task phasing and status reporting
 
         Caller must include these attributes in the decorated class:
@@ -77,6 +76,9 @@ class Task(ABC):
         """
         def decorator(func):
             def wrapper(self, *args, **kwargs):
+                import click
+                import requests
+                from .stats import Tracker
                 self.set_phase(func.__name__)
                 self.post_status('started')
                 phase = self.get_phase

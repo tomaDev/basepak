@@ -6,17 +6,16 @@ import igz_mgmt
 from igz_mgmt import exceptions as igz_mgmt_exceptions
 from tenacity import retry, wait_exponential, stop_after_attempt
 
-from . import consts, log, time, platform_api
-from .credentials import Credentials
-
 
 @contextmanager
 def client_context(
         user_from_credential_store: Optional[str] = 'USER',
         host_ip: Optional[str] = None,
 ) -> igz_mgmt.Client:
-    if not host_ip:
-        host_ip = os.environ.get('IGZ_NODE_MANAGEMENT_IP') or '127.0.0.1'
+    from . import log
+    from .credentials import Credentials
+
+    host_ip = host_ip or os.environ.get('IGZ_NODE_MANAGEMENT_IP') or '127.0.0.1'
     creds = Credentials.get(user_from_credential_store)
     if not creds:
         raise ValueError('No user credentials found')
@@ -50,6 +49,7 @@ def bulk_update_app_services(
         services_to_restart: Iterable[str] = (),
         force_apply_all: igz_mgmt.constants.ForceApplyAllMode = igz_mgmt.constants.ForceApplyAllMode.disabled
 ):
+    from . import log
     with client_context_with_asm(force_apply_all) as (client, asm):
         logger = log.get_logger()
         for service_name in services_to_restart:
@@ -71,6 +71,7 @@ def bulk_update_app_services(
 
 
 def get_desired_states_stash(created: str, service_types: Iterable[str]) -> dict:
+    from . import time
     with client_context() as client:
         k8s_confing = igz_mgmt.K8sConfig.list(client)  # IG-22833 oy vey
         app_services = k8s_confing[0].app_services
@@ -83,6 +84,8 @@ def get_desired_states_stash(created: str, service_types: Iterable[str]) -> dict
 
 
 def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
+    from .credentials import Credentials
+    from . import log, time, platform_api, consts
     logger = log.get_logger(name='short')
     security_admin_creds = Credentials.get('SECURITY_ADMIN')
     logger.warning(f'Ensuring user "{username}" in {tenant=}')

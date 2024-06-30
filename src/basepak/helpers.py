@@ -102,8 +102,9 @@ def print_as(syntax: str, data: Mapping | str, printer=None, yaml_default_flow_s
     printer(log_msg)
 
 
-def subprocess_stream(cmd: str, output_file: Optional[str | Path] = None, error_file: Optional[str | Path] = None,
-                      *args, **kwargs):
+def subprocess_stream(
+        cmd: str, output_file: Optional[str | Path] = None, error_file: Optional[str | Path] = None, *args, **kwargs
+) -> None:
     """Subprocess run with streaming output to logger.
 
     @param cmd: str              - command to run
@@ -324,14 +325,6 @@ def validate_dir(path) -> str:
     if not os.access(path, os.R_OK | os.W_OK, follow_symlinks=True):
         raise PermissionError(f'No read+write permissions for {path}')
     return path
-
-
-def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[str] = 'default-tenant') -> str:
-    """Get port of a service by name"""
-    jsonpath = '{.spec.ports[?(@.name=="' + port_name + '")].port}'
-    logger = log.get_logger(name='plain')
-    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, 'get service', service_name, logger=logger)
-    return kubectl.run(f"--output jsonpath='{jsonpath}'").stdout
 
 
 def truncate(string: str, max_len: int, hash_len: int = 4, suffix: str = '') -> str:

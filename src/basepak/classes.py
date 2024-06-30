@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import json
 from dataclasses import dataclass, field
 
@@ -11,18 +10,19 @@ class ConstMeta(type):  # classes in consts should be immutable
     Inheriting from this class will prevent setting and deleting attributes"""
     def __setattr__(cls, key, value):
         if key in cls.__dict__:
-            raise AttributeError(f"Cannot modify constant attribute '{key}'")
+            raise AttributeError(f"Class {cls.__name__} immutable! Cannot modify constant attribute '{key}'")
         super().__setattr__(key, value)
 
     def __delattr__(cls, key):
         if key in cls.__dict__:
-            raise AttributeError(f"Cannot delete constant attribute '{key}'")
+            raise AttributeError(f"Class {cls.__name__} immutable! Cannot delete constant attribute '{key}'")
         super().__delattr__(cls, key)
 
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder for datetime objects"""
     def default(self, obj):
+        import datetime
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
         return super().default(obj)

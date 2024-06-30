@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Optional, Mapping
 
-from .. import consts, configer, time, helpers
 
-POD_SPEC_DEFAULT = {  # not extracting this to consts module, as it's not used anywhere else
+POD_SPEC_DEFAULT = {
     # OnFailure - container restarts in the same pod on the same node.
     # Never - container restarts in a new pod. This is preferred, as switching nodes may solve the issue
     'restartPolicy': 'Never',
@@ -28,6 +26,8 @@ POD_SPEC_DEFAULT = {  # not extracting this to consts module, as it's not used a
 
 
 def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
+    import os
+    from .. import consts, configer, time, helpers
     security_context = {} if params.get('-securityContext') is False else {
         'securityContext': params.get('-securityContext') or {  # False infers user input. None infers missing
             'runAsUser': params.get('RUN_AS_USER') or os.geteuid(),
@@ -47,21 +47,17 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
                 }]}]}
     if params.get('-podSpec'):
         pod_spec.update(params['-podSpec'])
-    default_labels = consts.DEFAULT_LABELS.copy()
-    default_labels.update({
-        consts.IS_PURGEABLE_KEY: 'true',
-        'created-by': params.get('APP_NAME') or 'basepak',
-    })
 
     job_name = helpers.truncate_middle(params['JOB_NAME'])
-
+    user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
+    user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'true')
     template_batch_job = {
         'apiVersion': 'batch/v1',
         'kind': 'Job',
         'metadata': {
             'name': job_name,
             'namespace': params['NAMESPACE'],
-            'labels': default_labels | params['METADATA'].get('labels', {}),
+            'labels': consts.DEFAULT_LABELS | user_labels,
             },
         'spec': {
             'ttlSecondsAfterFinished': time.str_to_seconds(params['RETENTION_PERIOD']),

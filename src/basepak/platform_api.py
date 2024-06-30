@@ -326,7 +326,7 @@ def get_app_service_status(app_services: Sequence, app_service_name: str) -> dic
 
 @exceptions.retry_strategy_default
 @functools.lru_cache()
-def get_sysconfig(base_url: str, session: requests.sessions.Session = None) -> dict:
+def get_sysconfig(base_url: str, session: Optional[requests.sessions.Session] = None) -> dict:
     if not session:
         creds = Credentials.set()
         session, _ = start_api_session(creds.get('IGUAZIO_ADMINISTRATOR'), base_url + consts.APIRoutes.SESSIONS)
@@ -336,13 +336,13 @@ def get_sysconfig(base_url: str, session: requests.sessions.Session = None) -> d
     return json.loads(resp)['spec']
 
 
-def get_app_name_prefix(base_url: str, session: requests.sessions.Session = None) -> dict:
+def get_app_name_prefix(base_url: str, session: Optional[requests.sessions.Session] = None) -> dict:
     sysconfig = get_sysconfig(base_url, session)
     return sysconfig['data_cluster']['subdomain'].split('.', maxsplit=1)[1] + '-'
 
 
 @exceptions.retry_strategy_default
-def validate_cluster_status(session, spec):
+def validate_cluster_status(session: requests.Session, spec: Mapping) -> None:
     response = session.get(spec['API_BASE_URL'] + consts.APIRoutes.CLUSTERS)
     response.raise_for_status()
     try:
@@ -356,8 +356,14 @@ def validate_cluster_status(session, spec):
                                               f'Expected one of {consts.ClusterStatusActionMap.CONTINUE}')
 
 
-def api_request(data_node_ip: str, endpoint: str, request_type, filter_: Union[List[str], str], data: str = '',
-                json_loads: str = '') -> dict:
+def api_request(
+        data_node_ip: str,
+        endpoint: str,
+        request_type,
+        filter_: Union[List[str], str],
+        data: Optional[str] = '',
+        json_loads: Optional[str] = ''
+) -> dict:
     if not endpoint.startswith('/'):
         endpoint = '/' + endpoint
     base_url = consts.APIRoutes.BASE.format(data_node_ip or '127.0.0.1')
@@ -376,7 +382,7 @@ def api_request(data_node_ip: str, endpoint: str, request_type, filter_: Union[L
     return response
 
 
-def get_storage_stats(session, spec: dict, units: str = 'auto') -> dict[str, str]:
+def get_storage_stats(session, spec: dict, units: Optional[str] = 'auto') -> dict[str, str]:
     pools_data = get_storage_pools_data(session, spec['API_BASE_URL'])
     usable_capacity = Unit.iterable_to_unit(x['attributes']['usable_capacity'] for x in pools_data)
     free_space = Unit.iterable_to_unit(x['attributes']['free_space'] for x in pools_data)
@@ -390,10 +396,3 @@ def get_storage_stats(session, spec: dict, units: str = 'auto') -> dict[str, str
     except ValueError as e:
         log.get_logger(name='plain').warning(f'Failed to calculate used capacity\n{e}')
     return result
-
-
-class UnexpectedResponse(requests.exceptions.RequestsWarning):
-    """Unexpected response from API"""
-    def __init__(self, expected: int, received: int, text: str = ''):
-        self.message = f"Expected status code: {expected}. Received: {received}. {text}"
-        super().__init__(self.message)

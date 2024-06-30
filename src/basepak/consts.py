@@ -65,12 +65,8 @@ class FieldSelectors(metaclass=ConstMeta):
 
 
 SECRET_NAME_BASE = 'platform-users'
-
 IS_PURGEABLE_KEY = 'purgeable'
-DEFAULT_LABELS = {
-    'basepak/version': package_version,
-    IS_PURGEABLE_KEY: 'false',
-}
+DEFAULT_LABELS = {'basepak/version': package_version}
 RELOAD_KUBECONFIG_PAYLOAD = {
     "data": {
         "type": "app_cluster_configuration_reload",

@@ -4,13 +4,12 @@ import subprocess
 import sys
 from functools import wraps
 from ssl import SSLCertVerificationError
+from typing import Optional
 
 import click
 import requests
 from igz_mgmt import exceptions as igz_mgmt_exceptions
 from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_exponential
-
-from basepak import log
 
 
 class CustomExecError(Exception):
@@ -24,15 +23,24 @@ class CustomExecError(Exception):
         return f'CustomExecErr: {self.message}, [{self.returncode}]: {self.stderr}'
 
 
-class ServiceNotReadyError(Exception):
+class AppServiceNotReadyError(Exception):
+    """App service not ready for operation"""
     def __init__(self, name: str, state: str):
         self.message = f"App service: {name} not ready. Current state: {state}"
         super().__init__(self.message)
 
 
 class ClusterNotReadyError(Exception):
+    """Cluster not ready for operation"""
     def __init__(self, name: str = None, state: str = None, message: str = None):
         self.message = message or f"Cluster: {name} not ready. Current state: {state}"
+        super().__init__(self.message)
+
+
+class UnexpectedResponse(requests.exceptions.RequestsWarning):
+    """Unexpected response from platform API"""
+    def __init__(self, expected: int, received: int, text: Optional[str] = ''):
+        self.message = f"Expected status code: {expected}. Received: {received}. {text}"
         super().__init__(self.message)
 
 
@@ -43,6 +51,7 @@ def retry_strategy_too_many_requests(func):
             reraise=True,
             wait=wait_exponential(multiplier=3, max=600),
         )(func)
+        from . import log
         logger = log.get_logger()
         try:
             return decorated_func(*args, **kwargs)
@@ -75,6 +84,7 @@ def retry_strategy_default(func):
             wait=wait_random_exponential(multiplier=3),
             stop=stop_after_attempt(5),
         )(func)
+        from . import log
         logger = log.get_logger()
         try:
             return decorated_func(*args, **kwargs)
@@ -100,7 +110,7 @@ def retry_strategy_default(func):
             logger.error(e.stderr)
             raise e
         except (FileNotFoundError, FileExistsError, AssertionError, RuntimeError, ValueError, StopIteration,
-                ServiceNotReadyError,  ClusterNotReadyError, igz_mgmt_exceptions.AppServiceNotExistsException) as e:
+                AppServiceNotReadyError, ClusterNotReadyError, igz_mgmt_exceptions.AppServiceNotExistsException) as e:
             logger.error(f'{type(e).__name__}: {e}')
             raise e
         except OSError as e:

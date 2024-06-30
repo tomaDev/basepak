@@ -1,25 +1,24 @@
 from __future__ import annotations
-import base64
+
 import functools
-import json
 from typing import Mapping, Optional, Dict, Iterable, Type
 
-import click
-from importlib import resources
-
-from dotenv import dotenv_values
-
-from . import log
-from .helpers import Executable
-from . import __name__ as package_name
 
 @functools.lru_cache()
 def load_from_dotenv(dotenv_path: Optional[str] = None) -> Dict[str, str]:
-    return dotenv_values(str(dotenv_path or resources.files('bkp').joinpath('.env')), verbose=True)
-    # todo: generalize to be used for other modules
+    from dotenv import dotenv_values, find_dotenv
+    return dotenv_values(str(dotenv_path or find_dotenv()), verbose=True)
 
 
 class Credentials:
+    """Singleton class to store credentials
+
+    \b
+    Sources supported:
+    - Code
+    - K8S secrets
+    - Dotfile. Path defaults to environment variable BASEPAK_DOTENV_PATH
+    """
     _instance = None
     _credentials = dict()
 
@@ -29,20 +28,29 @@ class Credentials:
         return cls._instance
 
     @classmethod
-    def get(cls, user_mask: Optional[str] = None, default=None) -> Dict[str, str | dict] | None:
-        """Get credentials for all users or a specific user"""
+    def get(cls, user_mask: Optional[str] = None, default: Optional[str | dict] = None) -> Dict[str, str | dict] | None:
+        """Get credentials for all users or a specific user
+
+        @user_mask: user mask to get credentials for. If None, return all credentials
+        @default: default value to return if user_mask is not found
+        """
+        from copy import deepcopy
         if user_mask:
-            return cls._credentials.get(user_mask, default if default else dict()).copy()
-        return cls._credentials.copy()
+            return deepcopy(cls._credentials.get(user_mask, default if default else dict()))
+        return deepcopy(cls._credentials)
 
     @classmethod
-    def set_from_k8s(cls, user_mask: str = None, namespace: str = 'default-tenant', skip: Iterable = None):
+    def set_from_k8s(cls, user_mask: Optional[str] = None, namespace: Optional[str] = 'default-tenant',
+                     selector: Optional[str] = '', skip: Optional[Iterable] = None):
         """Pull secret from k8s, and set credentials for user_mask"""
+        from .helpers import Executable
+        from . import log
+        import json
         logger = log.get_logger()
         kubectl = Executable(
             'kubectl',
             'kubectl get secrets --output json --ignore-not-found --namespace', namespace,
-            '--selector created-by=bakpak',
+            f'--selector {selector}' if selector else '',
             logger=log.get_logger(name='plain'),
         )
         secrets = kubectl.run(show_cmd_level='warning').stdout
@@ -54,6 +62,7 @@ class Credentials:
             if skip and name in skip:
                 logger.info(f'Credentials for {name} were passed as flags. Skipping...')
                 continue
+            import base64
             creds = {k: base64.b64decode(v).decode(errors='replace') for k, v in item['data'].items()}
             logger.info(f'Loading credentials for {name} from k8s secret: {namespace}/{item["metadata"]["name"]}')
             cls._credentials[name] = creds
@@ -62,7 +71,8 @@ class Credentials:
     def set(
             cls,
             spec: Optional[Mapping[str, Mapping[str, str]]] = None,
-            auths: Optional[Mapping[str, str]] = None
+            auths: Optional[Mapping[str, str]] = None,
+            dotenv_path: Optional[str] = None,
     ) -> Type[Credentials]:
         """Set credentials for users in spec and args
         @param spec: dict of dicts to get credentials from a file:
@@ -78,20 +88,26 @@ class Credentials:
                 USER_MASK: USERNAME:PASSWORD,
                 ...,
             }
+        @param dotenv_path: path to .env file. Defaults to environment variable BASEPAK_DOTENV_PATH
         """
-        dotenv_configs = load_from_dotenv()
-        cls._credentials.setdefault('RETHINKDB_ADMIN', {
-            'USERNAME': 'admin',
-            'AUTH_KEY': dotenv_configs.get('RETHINKDB_AUTH_KEY')
-        })
-        cls._credentials.setdefault('IGUAZIO_ADMINISTRATOR', {
-            'USERNAME': dotenv_configs.get('USERNAME'),
-            'PASSWORD': dotenv_configs.get('PASSWORD'),
-        })
+        import os
+        import click
+        from . import log
+        logger = log.get_logger()
+        dotenv_path = dotenv_path or os.environ['BASEPAK_DOTENV_PATH']
+        if dotenv_configs := load_from_dotenv(dotenv_path):
+            logger.debug(f'{dotenv_path=}')
+            for user_mask, creds in dotenv_configs.items():
+                if not creds:
+                    cls._credentials.setdefault(user_mask, None)
+                elif ':' not in creds:
+                    cls._credentials.setdefault(user_mask, creds)
+                else:
+                    user, secret = creds.split(':')
+                    cls._credentials.setdefault(user_mask, {'USERNAME': user, 'PASSWORD': secret})
         if not spec:
             spec = dict()
         cls._credentials.update(spec)
-        logger = log.get_logger()
         if auths:
             for user_mask, auth_string in auths.items():
                 if not auth_string:
@@ -119,4 +135,6 @@ class Credentials:
             if mask.get('USERNAME').lower() == 'username':
                 logger.error(f'Invalid username for {user_mask}')
                 raise click.Abort(user_mask)
+
+        logger.debug(f'Loaded credentials for masks: {cls._credentials}')
         return cls

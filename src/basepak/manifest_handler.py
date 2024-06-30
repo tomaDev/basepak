@@ -3,13 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-import click
-import ruyaml as yaml
-
-from . import consts, log
-
 
 def validate_spec_keys_are_dicts(manifest: dict[str, any]) -> None:
+    import click
     for k, v in manifest.items():
         if v is None or not k.endswith('Spec'):
             continue
@@ -19,6 +15,9 @@ def validate_spec_keys_are_dicts(manifest: dict[str, any]) -> None:
 
 
 def load_and_validate(yaml_path: str | Path, ) -> dict:
+    import ruyaml as yaml
+    import click
+    from . import log
     yaml_path = Path(yaml_path).resolve()
     try:
         manifest = yaml.YAML(typ='safe', pure=True).load(yaml_path)
@@ -33,6 +32,8 @@ def load_and_validate(yaml_path: str | Path, ) -> dict:
 
 
 def get_hosts_info(igz_version: Optional[str] = None) -> dict[str, dict[str, str]]:
+    from . import consts
+    import click
     igz_version_path = Path('/home/iguazio/igz/version.txt')
     path = consts.KOMPTON_INVENTORY_HOSTS_PATH_PATTERN.format(igz_version=igz_version or igz_version_path.read_text())
     hosts_file = load_and_validate(path)

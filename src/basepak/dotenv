@@ -1,0 +1,9 @@
+# Copy this file to your package
+# Name it ".env"
+# Add it to your .gitignore
+# Fill in the values
+# Provide its path either as a string variable in your code, an environment variable 'BASEPAK_DOTENV_PATH'
+# if not provided, basepak will search for it using dotenv.find_dotenv()
+MASK1=USERNAME:PASSWORD
+MASK2=USERNAME:AUTH_KEY
+MASK3=CONFIG

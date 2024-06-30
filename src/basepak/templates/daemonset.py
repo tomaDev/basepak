@@ -3,10 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from .. import consts, configer
-
 
 def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] = None, filename: Optional[str] = None):
+    from .. import consts, configer
     affinity = {}
     if params.get('NODE_NAMES'):
         affinity['affinity'] = {
@@ -18,13 +17,16 @@ def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] 
                             'operator': 'In',
                             'values': params['NODE_NAMES']
                         }]}]}}}
+    user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
+    user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'true')
     template_daemonset = {
         'apiVersion': 'apps/v1',
         'kind': 'DaemonSet',
         'metadata': {
-            'name': 'journal-monitor',
+            'name': 'journal-monitor',  # todo: generalize
             'namespace': params['NAMESPACE'],
-            'labels': consts.DEFAULT_LABELS | params['METADATA'].get('labels', {}) | {consts.IS_PURGEABLE_KEY: 'true'}},
+            'labels': consts.DEFAULT_LABELS | user_labels,
+        },
         'spec': {
             'selector': {
                 'matchLabels': {

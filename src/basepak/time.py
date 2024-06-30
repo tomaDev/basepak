@@ -16,7 +16,7 @@ SUPPORTED_TIME_NOTATION = [
 ]
 
 
-def _make_timedelta_pattern(patterns: List[List[str]]):
+def _make_timedelta_pattern(patterns: List[List[str]]) -> str:
     return ''.join(fr'((?P<{keyword}>\d+? *){notation})?' for keyword, notation in patterns)
 
 
@@ -41,11 +41,11 @@ def str_to_seconds(value: Optional[str] = None) -> int:
     return int(str_to_timedelta(value).total_seconds())
 
 
-def strptime(date_string: str, date_format: str = DEFAULT_FORMAT) -> datetime:
+def strptime(date_string: str, date_format: Optional[str] = DEFAULT_FORMAT) -> datetime:
     return datetime.strptime(date_string, date_format)
 
 
-def create_timestamp(format_: str = DEFAULT_FORMAT) -> str:
+def create_timestamp(format_: Optional[str] = DEFAULT_FORMAT) -> str:
     return datetime.strftime(datetime.now(), format_)
 
 
@@ -53,7 +53,7 @@ def fromtimestamp(float_time: float) -> datetime:
     return datetime.fromtimestamp(float_time)
 
 
-def sleep(seconds: float):
+def sleep(seconds: float) -> None:
     if seconds < 0:
         seconds = 0
     time.sleep(seconds)

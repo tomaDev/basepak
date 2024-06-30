@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import logging
-from enum import Enum
-from typing import List, Dict, Sequence, Optional
-
 from .abstract_classes import Task, Eventer
 
 
 class Plan(Task):
+    import logging
+
+    from enum import Enum
+    from typing import List, Dict, Sequence, Optional
+
     def __init__(self, name: str, session, eventer: Eventer, logger: logging.Logger, spec: dict,
                  tasks: Optional[List[str | Enum]] = None, task_map: Optional[Dict[str, Task]] = None):
         super().__init__('plan_' + name, session, eventer, logger, spec, exec_mode='normal')

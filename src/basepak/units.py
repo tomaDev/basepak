@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import Iterable, Union, Callable
+from typing import Iterable, Union, Callable, Optional
 
 import click
 
@@ -18,24 +18,28 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
     unit: str = field(init=False)
 
     ZERO_UNIT = '0 B'
-    UNIT_FACTORS = {  # The 1000 vs 1024 war is not mine to fight
-        'B':  1,
-        'KB': 1024,
+    UNIT_FACTORS = {
+        'B':  1,    # Bytes only, no bits
         'K':   1024,
         'Ki':  1024,
         'KiB': 1024,
-        'M':  1024 ** 2,
+        'KB': 1000,
+        'M':   1024 ** 2,
         'Mi':  1024 ** 2,
         'MiB': 1024 ** 2,
-        'G':  1024 ** 3,
+        'MB': 1000 ** 2,
+        'G':   1024 ** 3,
         'Gi':  1024 ** 3,
         'GiB': 1024 ** 3,
-        'T':  1024 ** 4,
+        'GB': 1000 ** 3,
+        'T':   1024 ** 4,
         'Ti':  1024 ** 4,
         'TiB': 1024 ** 4,
-        'P':  1024 ** 5,
+        'TB': 1000 ** 4,
+        'P':   1024 ** 5,
         'Pi':  1024 ** 5,
         'PiB': 1024 ** 5,
+        'PB': 1000 ** 5,
     }
 
     def __post_init__(self) -> None:
@@ -64,8 +68,8 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
                 return Unit(f'{value_in_bytes / factor} {unit}')
 
     @staticmethod
-    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: str = 'B',
-                         operation: Callable = sum) -> 'Unit':
+    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
+                         operation: Optional[Callable] = sum) -> 'Unit':
         candidates = list()
         for arg in args:
             if isinstance(arg, str):
@@ -120,13 +124,13 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
         return Unit(f'{value} {self.unit}').adjust_unit()
 
     @staticmethod
-    def split_on_first_letter(string: str):
+    def split_on_first_letter(string: str) -> list[str]:
         """Split a string into two strings on the first occurrence of a letter"""
         index = next((i for i, c in enumerate(string) if c.isalpha()), len(string))
         return [string[:index], string[index:]]
 
     @staticmethod
-    def clean_strings(string_list: list[str]):
+    def clean_strings(string_list: list[str]) -> list[str]:
         """Split, strip and prune empties for a list of strings"""
         cleaned_list = []
         for string in string_list:

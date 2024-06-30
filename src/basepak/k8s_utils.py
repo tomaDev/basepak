@@ -16,12 +16,11 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Set, Iterable, Dict
+from typing import Set, Iterable, Dict, Optional
 
 from . import consts, helpers, time, log
 from .classes import Version
 from .helpers import Executable
-from .templates import batch_job, persistent_volume_claim, daemonset
 
 DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
@@ -47,6 +46,14 @@ def get_kubectl_version() -> Version:
     result = kubectl.run('version --client --output json')
     kubectl_version = json.loads(result.stdout)['clientVersion']['gitVersion'][1:]  # strip 'v' prefix
     return Version(kubectl_version)
+
+
+def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[str] = 'default-tenant') -> str:
+    """Get port of a service by name"""
+    jsonpath = '{.spec.ports[?(@.name=="' + port_name + '")].port}'
+    logger = log.get_logger(name='plain')
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, 'get service', service_name, logger=logger)
+    return kubectl.run(f"--output jsonpath='{jsonpath}'").stdout
 
 
 def get_intersect_app_nodes(node_names: Iterable[str], logger: logging.Logger) -> Set[str]:
@@ -131,6 +138,7 @@ def ensure_pvc(spec: dict, logger: logging.Logger):
         logger.debug(f'persistentvolumeclaim {spec["PERSISTENT_VOLUME_CLAIM_NAME"]} exists\nSkipping creation..')
     else:
         logger.info('Creating persistent volume claim')
+        from .templates import persistent_volume_claim
         persistent_volume_claim.generate_template(spec)
         pvc_manifest_path = os.path.join(spec['GENERATED_MANIFESTS_FOLDER'], 'persistent-volume-claim.yaml')
         kubectl.stream(f'apply --filename={pvc_manifest_path}')
@@ -175,6 +183,7 @@ def ensure_daemonset(spec: dict, logger: logging.Logger):
             logger.info(f'{ds=} not found in {namespace=}. Creating...')
             if spec['MODE'] != 'dry-run':
                 filename = 'journal-monitor'
+                from .templates import daemonset
                 daemonset.generate_template(spec, dump_folder=spec['CACHE_FOLDER'], filename=filename)
                 kubectl.run('create --filename', str(spec['CACHE_FOLDER'] / f'{filename}.yaml'))
                 resp = get_status.run()
@@ -199,6 +208,7 @@ def ensure_daemonset(spec: dict, logger: logging.Logger):
 def create_oneliner_job(spec: dict, command: str | Executable, container_name: str, await_completion: bool = False,
                         mode: str = 'normal') -> str:
     """Create a k8s job with a single container that runs a single command"""
+    from .templates import batch_job
     logger = log.get_logger(name=spec.get('LOGGER_NAME'), level=spec.get('LOG_LEVEL') or 'INFO')
     ensure_pvc(spec, logger)
     spec = spec.copy()
