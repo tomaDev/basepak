@@ -1,5 +1,8 @@
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling",
+    "hatch-semver",
+]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
@@ -42,8 +45,9 @@ Issues = "https://github.com/tomaDev/basepak/issues"
 Source = "https://github.com/tomaDev/basepak"
 
 [tool.hatch.version]
-scheme = "standard"
+scheme = "semver"
 path = "src/basepak/__about__.py"
+validate-bump = true
 
 [tool.hatch.envs.default]
 installer = "uv"
