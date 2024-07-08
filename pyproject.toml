@@ -75,7 +75,6 @@ dependencies = [
         'rich',
         'psutil',
         'python-dotenv',
-        'rethinkdb',
         'igz-mgmt',
 ]
 

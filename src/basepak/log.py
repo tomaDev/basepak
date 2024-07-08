@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
 from functools import lru_cache, partial
-from typing import Optional
+from typing import Optional, Mapping
 
 import rich
 from rich.logging import RichHandler
@@ -124,3 +125,43 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
 
     LOGGERS.add(name)
     return logger
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime objects"""
+    def default(self, obj):
+        import datetime
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+def log_as(syntax: str, data: Mapping | str, printer=None, yaml_default_flow_style: bool = True):
+    """Print data to console as file
+
+    @param syntax  - supported formatting syntax: yaml, json
+    @param data    - data to print
+    @param printer - printer function to use, defaults to logger.info
+    @param yaml_default_flow_style - yaml style. True - Flow style for brevity. False - Block style for readability
+    """
+    if not data:
+        return
+    if syntax == 'yaml':
+        import io
+        import ruyaml as yaml
+        from .strings import iter_to_case
+        if isinstance(data, Mapping):
+            data = iter_to_case(data, target_case='camelBackCase')
+        stream = io.StringIO()
+        yaml_instance = yaml.YAML(typ='safe', pure='True')
+        yaml_instance.default_flow_style = yaml_default_flow_style
+        yaml_instance.dump(data, stream)
+        log_msg = stream.getvalue()
+    elif syntax == 'json':
+        if isinstance(data, Mapping):
+            data = json.dumps(data, cls=DateTimeEncoder)
+        log_msg = json.dumps(json.loads(data), sort_keys=True, indent=2, cls=DateTimeEncoder)
+    else:
+        raise NotImplementedError(f'Printing data as {syntax} is not implemented')
+    printer = printer or get_logger('plain').info
+    printer(log_msg)

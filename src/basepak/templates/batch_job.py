@@ -27,7 +27,7 @@ POD_SPEC_DEFAULT = {
 
 def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
     import os
-    from .. import consts, configer, time, helpers
+    from .. import consts, configer, time, strings
     security_context = {} if params.get('-securityContext') is False else {
         'securityContext': params.get('-securityContext') or {  # False infers user input. None infers missing
             'runAsUser': params.get('RUN_AS_USER') or os.geteuid(),
@@ -48,7 +48,7 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
     if params.get('-podSpec'):
         pod_spec.update(params['-podSpec'])
 
-    job_name = helpers.truncate_middle(params['JOB_NAME'])
+    job_name = strings.truncate_middle(params['JOB_NAME'])
     user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
     user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'true')
     template_batch_job = {

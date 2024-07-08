@@ -18,16 +18,39 @@ from datetime import datetime
 from pathlib import Path
 from typing import Set, Iterable, Dict, Optional
 
-from . import consts, helpers, time, log
-from .classes import Version
-from .helpers import Executable
+from . import consts, time, log
+from .execute import Executable, subprocess_stream
+from .versioning import Version
 
 DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
 
 
+def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run'):
+    """Runs kubectl command and saves output to file
+
+    :param command: kubectl command to run
+    :param output_file: file to save output to
+    :param mode: 'dry-run' or 'normal'
+    """
+    command = str(command)
+    output_file = str(output_file)
+    logger = log.get_logger(name='plain')
+    logger.info(f'{command} > {output_file}')
+    if mode == 'dry-run':
+        return
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    error_file = f'{output_file}.err'
+    subprocess_stream(command, output_file=output_file, error_file=error_file)
+    if os.path.getsize(error_file) == 0:
+        os.remove(error_file)
+
+
 def print_namespace_events(namespace: str):
+    """Print k8s events for a namespace, sorted by creation time, supports kubectl v1.21 and later
+
+    :param namespace: k8s namespace"""
     kubectl = Executable('kubectl', 'kubectl --namespace', namespace, logger=log.get_logger(name='plain'))
     cmd = 'events'
     if get_kubectl_version() < Version('1.23'):
@@ -104,7 +127,8 @@ def ensure_namespace_from_file(file: str | Path, logger: logging.Logger, mode: s
     if namespace == file_path.stem:
         logger.warning(f'Inferred namespace equals filename ({namespace}), which is suspect')
         if mode == 'normal':
-            helpers.confirm_default('Namespace will be created if not present in k8s. Continue?')
+            from . import confirm
+            confirm.default('Namespace will be created if not present in k8s. Continue?')
     ensure_namespace(mode, namespace, logger)
     return namespace
 
@@ -196,7 +220,7 @@ def ensure_daemonset(spec: dict, logger: logging.Logger):
     retries = 3
     interval = 10
     while ds_status['desiredNumberScheduled'] != ds_status['numberReady'] and retries:
-        helpers.print_as('json', ds_status, printer=logger_plain.info)
+        log.log_as('json', ds_status, printer=logger_plain.info)
         logger.info('Waiting for desiredNumberScheduled == numberReady')
         retries -= 1
         time.sleep(interval)
@@ -291,9 +315,9 @@ def await_k8s_job_completion(spec: dict) -> bool:
 
     if status != terminal_status:
         logger.error('Running status does not match terminal status:')
-        helpers.print_as('json', status, printer=logger_plain.warning)
+        log.log_as('json', status, printer=logger_plain.warning)
     logger.info(f'Terminal status: {status}')
-    helpers.print_as('json', terminal_status, printer=logger_plain.warning)
+    log.log_as('json', terminal_status, printer=logger_plain.warning)
     if terminal_status.get('failed'):
         conditions = terminal_status.get('conditions')
         if not conditions:
@@ -378,7 +402,7 @@ def _get_running_pod_manifest(kubectl, tries, retries, msg: str = '', logger: lo
         return _get_running_pod_manifest(kubectl, tries, retries, 'No pods found', logger)
     pod_manifest = next((x for x in items if x['status']['phase'] == 'Running'), None)
     if not pod_manifest:
-        helpers.print_as('json', result_stdout, printer=logger_plain.debug)
+        log.log_as('json', result_stdout, printer=logger_plain.debug)
         logger.info(f'{retries=}')
         return _get_running_pod_manifest(kubectl, tries, retries, 'No running pods found', logger)
     return pod_manifest

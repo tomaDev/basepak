@@ -12,10 +12,10 @@ from typing import Tuple, Optional, Dict, List, Mapping, Union, Sequence, Callab
 import requests
 from tenacity import retry, wait_fixed, retry_if_exception_type, stop_after_delay
 
+from . import consts, log
 from . import exceptions  # noqa missing
-from . import helpers, classes, consts, log
-from .abstract_classes import Eventer
 from .credentials import Credentials
+from .tasks import Eventer
 from .units import Unit
 
 EXCLUDE_CODES = {
@@ -48,9 +48,9 @@ def log_before(retry_state):
         logger.warning(f'{retry_state.kwargs["method"].upper()} {retry_state.kwargs["url"]}')
 
     if json_ := retry_state.kwargs.get('json'):
-        helpers.print_as('json', json_, printer=logger.debug)
+        log.log_as('json', json_, printer=logger.debug)
     if data := retry_state.kwargs.get('data'):
-        helpers.print_as('json', data, printer=logger.debug)
+        log.log_as('json', data, printer=logger.debug)
 
 
 class RetryableHTTPError(requests.exceptions.HTTPError):
@@ -204,7 +204,7 @@ class PlatformEvents(Eventer):
         returns: list of dicts with 'name' and 'value' keys"""
         def valuate(item):
             post_op = op(item)
-            return post_op if isinstance(post_op, str) else json.dumps(post_op, cls=classes.DateTimeEncoder)
+            return post_op if isinstance(post_op, str) else json.dumps(post_op, cls=log.DateTimeEncoder)
         if isinstance(params, Mapping):
             return [{'name': k, 'value': valuate(v)} for k, v in params.items() if v is not None]
         return [{'name': item, 'value': valuate(item)} for item in params]
@@ -263,7 +263,7 @@ def run_request(session: requests.Session, url: str, method: str = 'get', **kwar
         sys.exit(1)
     logger_plain.debug(f'{method.upper()} {url}')
     if kwargs:
-        helpers.print_as('json', kwargs, printer=logger_plain.debug)
+        log.log_as('json', kwargs, printer=logger_plain.debug)
     response = runnable(url, **kwargs)
     response.raise_for_status()
     return response
@@ -299,7 +299,7 @@ def get_storage_pools_data(session: requests.session, base_url: str, recalculate
     except KeyError:
         return _maybe_recalculate_storage_pools_stats(session, base_url, recalculate, KeyError,
                                                       '"free_space" key missing from storage pool attributes\n')
-    helpers.print_as('json', storage_pools.json(), printer=log.get_logger('plain').debug)
+    log.log_as('json', storage_pools.json(), printer=log.get_logger('plain').debug)
     return storage_pools_data
 
 

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, List
+import logging
+from typing import Dict, Optional, List, Callable
+
+import psutil
+
+from . import log, time
 
 
 class Tracker:
@@ -85,3 +90,42 @@ class Tracker:
     @classmethod
     def is_succeeded(cls, task: Optional[str] = None) -> bool:
         return not cls.is_failed(task)
+
+
+def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str) -> None:
+    if not thresholds:
+        logger.warning('No thresholds provided - skipping')
+        return
+    _await_stat(thresholds.get('MEMORY_PERCENT'), stat=_get_virtual_memory, name='memory', logger=logger, mode=mode)
+    _await_stat(thresholds.get('CPU_PERCENT'), stat=_get_load_avg, name='load avg', logger=logger, mode=mode)
+
+
+def _await_stat(threshold: Optional[float] = None, iterations: Optional[int] = 60, stat: Callable = None,
+                name: str = None, logger: logging.Logger = None, mode='dry-run') -> None:
+    logger = logger or log.get_logger(name='plain')
+    if threshold is None:
+        logger.warning(f'No {name} threshold provided - skipping')
+        return
+    if mode != 'normal':
+        return
+    running_stat = stat()
+    logger.debug(f'Initial {name} usage: {running_stat: .2f}%')
+    if running_stat < threshold:
+        return
+    ratio = 3  # aging ratio, to give more weight to the more recent values
+    logger.warning(f'Awaiting {name} average usage to undershoot {threshold}%...')
+    for i in range(iterations):
+        running_stat = (running_stat * (ratio - 1) + stat()) / ratio
+        logger.info(f'{i: >2} of {iterations}: {running_stat: .2f}%')
+        if running_stat < threshold:
+            return
+        time.sleep(1)
+    raise AssertionError(f'{name} usage threshold: {threshold}%. Current usage: {running_stat: .2f}%')  # noqa w0202
+
+
+def _get_load_avg() -> float:
+    return psutil.getloadavg()[0] / psutil.cpu_count()
+
+
+def _get_virtual_memory() -> float:
+    return psutil.virtual_memory()._asdict()['percent']  # noqa w0212

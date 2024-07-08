@@ -4,7 +4,8 @@ from typing import Optional, AnyStr
 
 import click
 
-from . import __name__ as package_name, helpers, log
+from . import __name__ as package_name, log
+from .execute import Executable
 
 # Click's native shell_completion.py in v8.1 uses `complete -o nosort`, which is supported by bash 4.4+
 # Iguazio CentOS7 uses bash 4.2.46, so the Click native completion generation script fails
@@ -72,7 +73,7 @@ def generate_script(
     profile_filename_default = '.bashrc'
     complete_filename_default = f'.{cli}_completion.sh'
     if shell.endswith('zsh'):
-        get_zsh_complete = helpers.Executable('zsh', f'_{cli.upper()}_COMPLETE=zsh_source {cli}', logger=logger_plain)
+        get_zsh_complete = Executable('zsh', f'_{cli.upper()}_COMPLETE=zsh_source {cli}', logger=logger_plain)
         complete_script = get_zsh_complete.run().stdout
         profile_filename_default = '.zshrc'
         complete_filename_default = f'.{cli}_completion.zsh'

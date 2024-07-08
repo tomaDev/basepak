@@ -43,7 +43,7 @@ class Credentials:
     def set_from_k8s(cls, user_mask: Optional[str] = None, namespace: Optional[str] = 'default-tenant',
                      selector: Optional[str] = '', skip: Optional[Iterable] = None):
         """Pull secret from k8s, and set credentials for user_mask"""
-        from .helpers import Executable
+        from .execute import Executable
         from . import log
         import json
         logger = log.get_logger()
