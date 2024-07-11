@@ -63,7 +63,15 @@ def generate_script(
         profile: Optional[click.Path], path: Optional[click.Path] = None, shell: Optional[str] = 'auto',
         force: Optional[bool] = False, display_name: Optional[str] = None, cli: Optional[str] = None
 ) -> int:
-    """Generate a shell completion script and optionally add a source command to your profile file"""
+    """Generate a shell completion script and optionally add a source command to your profile file
+    :param profile: Path to the profile file to add the source command to
+    :param path: Path to the completion script file
+    :param shell: Shell to generate the completion script for. 'auto' to auto-detect
+    :param force: Overwrite the completion script file if it exists
+    :param display_name: Display name of the package. Defaults to the process name
+    :param cli: Command line interface name. Defaults to the process name
+    :return: 0 on success, 1 on failure
+    """
     display_name = display_name or proc_name_best_effort(default=package_name)
     cli = cli or proc_name_best_effort(default=package_name)
     logger_plain = log.get_logger(name='plain')
@@ -104,6 +112,11 @@ def generate_script(
 
 
 def get_full_path(base_path, default_file) -> AnyStr:
+    """Get the full path of a file, resolving ~ and ensuring it's a file
+    :param base_path: Path to resolve
+    :param default_file: Default file name to use if base_path is a directory
+    :return: Full path to the file
+    """
     if base_path is None or os.path.isdir(base_path):
         base_path = os.path.join(base_path or os.path.expanduser('~'), default_file)
     return os.path.realpath(base_path)
@@ -111,6 +124,9 @@ def get_full_path(base_path, default_file) -> AnyStr:
 
 @functools.lru_cache
 def proc_name_best_effort(default: str = '') -> str:
+    """Get the name of the current process
+    :param default: Default name to return if the name is not found
+    :return: Process name"""
     import psutil
     try:
         return psutil.Process(os.getpid()).name() or default
@@ -119,6 +135,9 @@ def proc_name_best_effort(default: str = '') -> str:
 
 
 def proc_parent_name_best_effort(default: str = '') -> str:
+    """Get the name of the parent of current process
+    :param default: Default name to return if the name is not found
+    :return: Parent process name"""
     import psutil
     try:
         return psutil.Process(os.getppid()).name() or default

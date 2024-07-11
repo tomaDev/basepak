@@ -7,6 +7,8 @@ from typing import Iterable, Union, Callable, Optional
 
 import click
 
+from . import strings
+
 
 @total_ordering
 @dataclass
@@ -43,14 +45,18 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
     }
 
     def __post_init__(self) -> None:
-        input_list = self.split_on_first_letter(self._input_string)
-        input_stripped = self.clean_strings(input_list)
+        input_list = strings.split_on_first_letter(self._input_string)
+        input_stripped = strings.clean_strings(input_list)
         if len(input_stripped) != 2:
             raise ValueError(f'Constructor format: Number[ ]?Unit\nGot: {self._input_string}')
         self.value, self.unit = input_stripped
         self.value = float(self.value)
 
     def convert_to(self, unit: str) -> float:
+        """Convert the instance value to the given unit
+        :param unit: unit to convert to
+        :return: converted value
+        """
         if unit not in self.UNIT_FACTORS:
             raise ValueError(f'Unsupported units for conversion: {unit}\n'
                              f'Options: {self.UNIT_FACTORS.keys()}')
@@ -60,6 +66,9 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
         return value_in_bytes / self.UNIT_FACTORS[unit]
 
     def adjust_unit(self) -> 'Unit':
+        """Adjust the unit to the most appropriate one
+        :return: adjusted unit
+        """
         if self.value == 0:
             return Unit(self.ZERO_UNIT)
         value_in_bytes = self.value * self.UNIT_FACTORS[self.unit]
@@ -68,8 +77,14 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
                 return Unit(f'{value_in_bytes / factor} {unit}')
 
     @staticmethod
-    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
-                         operation: Optional[Callable] = sum) -> 'Unit':
+    def reduce(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
+               operation: Optional[Callable] = sum) -> 'Unit':
+        """Reduce an iterable of units to a single unit
+        :param args: iterable of units
+        :param unit: unit to convert to
+        :param operation: operation to perform on each unit
+        :return: single Unit instance
+        """
         candidates = list()
         for arg in args:
             if isinstance(arg, str):
@@ -78,9 +93,13 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
                 arg = arg.convert_to('B')  # converting to bytes and not 'unit' to avoid float truncation
             candidates.append(arg)
 
-        aggregated_value = operation(candidates)
-        ret = Unit(f'{aggregated_value} {unit}').adjust_unit()
+        ret = Unit(f'{operation(candidates)} {unit}').adjust_unit()
         return ret
+
+    @staticmethod
+    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
+                         operation: Optional[Callable] = sum) -> 'Unit':
+        return Unit.reduce(args, unit, operation)
 
     def __repr__(self):
         result = self.adjust_unit()
@@ -123,23 +142,11 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
         value = format(self.convert_to('B') / other.convert_to('B'), '.15f')
         return Unit(f'{value} {self.unit}').adjust_unit()
 
-    @staticmethod
-    def split_on_first_letter(string: str) -> list[str]:
-        """Split a string into two strings on the first occurrence of a letter"""
-        index = next((i for i, c in enumerate(string) if c.isalpha()), len(string))
-        return [string[:index], string[index:]]
-
-    @staticmethod
-    def clean_strings(string_list: list[str]) -> list[str]:
-        """Split, strip and prune empties for a list of strings"""
-        cleaned_list = []
-        for string in string_list:
-            parts = [part for part in string.split() if part]
-            cleaned_list.extend(parts)
-        return cleaned_list
-
     def as_unit(self, unit: str) -> str:
-        """Return the value as the given unit. If unit='auto', return as is"""
+        """Return the value as the given unit. If unit='auto', return as is
+        :param unit: unit to convert to
+        :return: value as string
+        """
         return str(self) if unit == 'auto' else f'{int(self.convert_to(unit))}{unit}'
 
 

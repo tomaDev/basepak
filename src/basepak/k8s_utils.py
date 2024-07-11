@@ -27,7 +27,7 @@ EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
 
 
-def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run'):
+def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run') -> None:
     """Runs kubectl command and saves output to file
 
     :param command: kubectl command to run
@@ -47,7 +47,7 @@ def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str =
         os.remove(error_file)
 
 
-def print_namespace_events(namespace: str):
+def print_namespace_events(namespace: str) -> None:
     """Print k8s events for a namespace, sorted by creation time, supports kubectl v1.21 and later
 
     :param namespace: k8s namespace"""
@@ -65,6 +65,9 @@ def print_namespace_events(namespace: str):
 
 @functools.lru_cache()
 def get_kubectl_version() -> Version:
+    """Get kubectl version
+
+    :return: kubectl version as a Version object"""
     kubectl = Executable('kubectl', logger=log.get_logger(name='plain'))
     result = kubectl.run('version --client --output json')
     kubectl_version = json.loads(result.stdout)['clientVersion']['gitVersion'][1:]  # strip 'v' prefix
@@ -72,7 +75,13 @@ def get_kubectl_version() -> Version:
 
 
 def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[str] = 'default-tenant') -> str:
-    """Get port of a service by name"""
+    """Get port of a service by name
+
+    :param service_name: k8s service name
+    :param port_name: port name
+    :param namespace: k8s namespace
+    :return: port number as a string
+    """
     jsonpath = '{.spec.ports[?(@.name=="' + port_name + '")].port}'
     logger = log.get_logger(name='plain')
     kubectl = Executable('kubectl', 'kubectl --namespace', namespace, 'get service', service_name, logger=logger)
@@ -80,6 +89,11 @@ def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[
 
 
 def get_intersect_app_nodes(node_names: Iterable[str], logger: logging.Logger) -> Set[str]:
+    """Get ready nodes in App cluster, intersect with node_names if specified
+    :param node_names: list of node names to intersect with ready nodes
+    :param logger: logger object
+    :return: set of ready nodes
+    """
     kubectl = Executable('kubectl', 'kubectl get nodes', logger=logger)
     nodes = [node.split() for node in kubectl.run(f"--output jsonpath='{consts.JSONPATH_READY}'").stdout.splitlines()]
     ready_nodes = set(node[0] for node in nodes if node[1] == 'True')
@@ -104,8 +118,13 @@ def get_intersect_app_nodes(node_names: Iterable[str], logger: logging.Logger) -
     return intersect_nodes
 
 
-def ensure_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str) -> str:
-    """Get namespace from file, create if not present in k8s"""
+def get_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str) -> str:
+    """Get namespace from file, create if not present in k8s
+    :param file: file to get namespace from
+    :param logger: logger object
+    :param mode: execution mode
+    :return: namespace
+    """
     file_path = Path(file)
     namespace_from_file = file_path.stem.split('_')[-1]
     if os.path.getsize(str(file)) == 0:
@@ -129,31 +148,43 @@ def ensure_namespace_from_file(file: str | Path, logger: logging.Logger, mode: s
         if mode == 'normal':
             from . import confirm
             confirm.default('Namespace will be created if not present in k8s. Continue?')
-    ensure_namespace(mode, namespace, logger)
     return namespace
 
 
-def ensure_namespace(mode: str, namespace: str, logger: logging.Logger):
+def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None,
+                     file: Optional[str | Path] = None) -> str:
+    """Ensure namespace exists in k8s, create if not present
+    :param mode: execution mode
+    :param logger: logger object
+    :param namespace: namespace string
+    :param file: file to get namespace from. If specified, namespace param is ignored
+    :return: namespace
+    """
     kubectl = Executable('kubectl', logger=log.get_logger('plain'))
+    if file:
+        namespace = get_namespace_from_file(file, logger, mode)
     namespace_exists = kubectl.run('get namespace', namespace, check=False)
     if namespace_exists.returncode == 0:  # success
-        return
+        return namespace
     if namespace_exists.stderr.startswith(RESOURCE_NOT_FOUND):
         logger.warning(f'{namespace=} not found, creating...')
         kubectl.stream('create namespace', namespace, ' --dry-run=client' if mode == 'dry-run' else '')
-        return
+        return namespace
     if not namespace_exists.stderr.startswith('Error from server (Forbidden)'):
         raise RuntimeError(namespace_exists.stderr)
     elif namespace == 'default-tenant':  # 'get ns' may fail due to permissions, but creating a job is still ok
-        return
+        return namespace
     raise PermissionError(namespace_exists.stderr)
 
 
-def ensure_pvc(spec: dict, logger: logging.Logger):
-    """Ensure PVC exists in k8s, create if not present"""
+def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
+    """Ensure PVC exists in k8s, create if not present
+    :param spec: dict with PVC parameters
+    :param logger: logger object
+    """
     logger_plain = log.get_logger('plain')
 
-    ensure_namespace(spec['MODE'], spec['NAMESPACE'], logger)
+    ensure_namespace(spec['MODE'], logger, namespace=spec['NAMESPACE'])
     if spec['MODE'] == 'dry-run':
         return
     kubectl = Executable('kubectl', 'kubectl --namespace', spec['NAMESPACE'], logger=logger_plain)
@@ -193,10 +224,14 @@ def ensure_pvc(spec: dict, logger: logging.Logger):
         raise RuntimeError(f'PVC {pvc_name} state: {pvc_status}! Desired options: {" ".join(pvc_desired_states)}')
 
 
-def ensure_daemonset(spec: dict, logger: logging.Logger):
+def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
+    """Ensure DaemonSet exists in k8s, create if not present
+    :param spec: dict with DaemonSet parameters
+    :param logger: logger object
+    """
     logger_plain = log.get_logger('plain')
     namespace = spec['NAMESPACE']
-    ensure_namespace(spec['MODE'], namespace, logger=logger)
+    ensure_namespace(spec['MODE'], logger, namespace=namespace)
     ds = spec['DAEMONSET_NAME']
     kubectl = Executable('kubectl', logger=logger_plain)
     get_status = Executable('get_status', 'kubectl get daemonset', ds, '--output jsonpath={.status}',
@@ -229,9 +264,16 @@ def ensure_daemonset(spec: dict, logger: logging.Logger):
         raise RuntimeError(f'{ds=} not ready after {retries=} with {interval=} seconds')
 
 
-def create_oneliner_job(spec: dict, command: str | Executable, container_name: str, await_completion: bool = False,
-                        mode: str = 'normal') -> str:
-    """Create a k8s job with a single container that runs a single command"""
+def create_oneliner_job(spec: dict, command: str | Executable, container_name: str,
+                        await_completion: Optional[bool] = False, mode: Optional[str] = 'normal') -> str:
+    """Create a k8s job that runs a single command
+    :param spec: dict with job parameters
+    :param command: command to run in the job
+    :param container_name: container name
+    :param await_completion: wait for job completion
+    :param mode: execution mode
+    :return: job name
+    """
     from .templates import batch_job
     logger = log.get_logger(name=spec.get('LOGGER_NAME'), level=spec.get('LOG_LEVEL') or 'INFO')
     ensure_pvc(spec, logger)
@@ -254,6 +296,8 @@ def create_oneliner_job(spec: dict, command: str | Executable, container_name: s
 
 
 def await_k8s_job_completion(spec: dict) -> bool:
+    """Wait for k8s job to complete
+    :param spec: dict with job parameters"""
     namespace = spec.get('NAMESPACE')
     if not namespace:
         raise ValueError('namespace not specified')
@@ -297,7 +341,7 @@ def await_k8s_job_completion(spec: dict) -> bool:
             status = json.loads(kubectl.run(job_status_cmd).stdout)
             kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
         if 'gibby' in name:  # remove when gibby errors on 'Task failed and retry limit has been reached' and not hang
-            retry_count = check_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
+            retry_count = _check_gibby_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
         status = json.loads(kubectl_run(job_status_cmd).stdout)
         now = datetime.now()
         if now.minute < 1 and now.second < wait_interval % 60 + 1:  # hourly liveness
@@ -326,7 +370,16 @@ def await_k8s_job_completion(spec: dict) -> bool:
     raise RuntimeError(f'Job failed with unexpected status - {status} - {name}')
 
 
-def check_logs_for_container_hang(job_name, namespace, kubectl, retry_count, logger):
+def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl: Executable, retries: int,
+                                         logger: logging.Logger) -> int:
+    """Check logs for container hang and delete all running pods if detected
+    :param job_name: job name
+    :param namespace: k8s namespace
+    :param kubectl: kubectl Executable object
+    :param retries: retry count
+    :param logger: logger object
+    :return: updated retry count
+    """
     # kubectl logs --pod-running-timeout=5m should wait for at least one pod running, but it doesn't for some reason
     # added retry as a workaround
 
@@ -350,21 +403,31 @@ def check_logs_for_container_hang(job_name, namespace, kubectl, retry_count, log
     logs = logs.stdout.splitlines()
     first_error_line = next((i for i, line in enumerate(logs) if task_failed_msg in line), None)
     if first_error_line:
-        retry_count -= 1
+        retries -= 1
         logger.warning(f'Stuckage detected!\n"{task_failed_msg}" found in logs')
-        if not retry_count:
+        if not retries:
             logs = logs[first_error_line:]
             for line in logs:
                 logger.warning(line)
             raise RuntimeError(f'"{task_failed_msg}" found in logs of {job_name}: {logs}')
-        logger.warning(f'Optimistically deleting all running pods\nRetries remaining: {retry_count}')
+        logger.warning(f'Optimistically deleting all running pods\nRetries remaining: {retries}')
         kubectl.stream(f'delete pod --selector=job-name={job_name} --output name --field-selector=status.phase=Running')
-    return retry_count
+    return retries
 
 
-def get_pod_name_and_job_image(
-        selector: str, container: str, namespace: str, logger: logging.Logger, retries: int = consts.RETRIES_DEFAULT
-) -> Dict[str, str]:
+def get_pod_name_and_job_image(selector: str, container: str, namespace: str, logger: logging.Logger,
+                               retries: Optional[int] = consts.RETRIES_DEFAULT) -> Dict[str, str]:
+    """Get pod name and job image from k8s
+    :param selector:  selector
+    :param container: container name
+    :param namespace: k8s namespace
+    :param logger: logger object
+    :param retries: number of retries
+    :return:  {
+        'POD_NAME': pod_name,
+        'JOB_IMAGE': job_image,
+    }
+    """
     logger_plain = log.get_logger(name='plain', level=logger.level)
     kubectl = Executable('kubectl', 'kubectl --namespace', namespace, logger=logger_plain)
     kubectl.set_args('--selector', selector, 'get pods --output json')
@@ -380,20 +443,29 @@ def get_pod_name_and_job_image(
     }
 
 
-def _get_running_pod_manifest(kubectl, tries, retries, msg: str = '', logger: logging.Logger = None):
+def _get_running_pod_manifest(kubectl: Executable, tries: int, retries: int, msg: Optional[str] = '',
+                              logger: Optional[logging.Logger] = None) -> dict:
+    """Get running pod manifest from k8s
+    :param kubectl: kubectl Executable object
+    :param tries: number of tries param
+    :param retries: dynamic retry counter
+    :param msg: error message to raise if failed
+    :param logger: logger object
+    :return: pod manifest
+    """
     if retries < 0:
         raise RuntimeError(msg)
     if tries < retries:
         raise Exception(f'{tries=}<{retries=}! This should never happen!')
     time.sleep(2 ** (tries - retries) - 1)  # lazy man's exponential backoff
-    retries = retries - 1
+    retries -= 1
     result = kubectl.run()
     result_stdout = result.stdout.strip()
     try:
         items = json.loads(result_stdout).get('items')
     except json.decoder.JSONDecodeError:
         return _get_running_pod_manifest(kubectl, tries, retries, 'Failed to decode json', logger)
-    except TypeError as e:  # 'NoneType' object is not subscriptable - parsed json is None
+    except TypeError as e:  # "'NoneType' object is not subscriptable" error means parsed json is None
         return _get_running_pod_manifest(kubectl, tries, retries, str(e), logger)
     logger_plain = log.get_logger('plain')
     if not items:

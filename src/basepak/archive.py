@@ -3,6 +3,8 @@ from typing import AnyStr
 
 
 def print_tar_top_level_members(tar_path: AnyStr):
+    """Print top level members of a tar file with their sizes in human-readable format
+    :param tar_path: path to tar file"""
     import tarfile
     with tarfile.open(tar_path) as tar:
         for member in tar.getmembers():
@@ -16,7 +18,12 @@ def print_tar_top_level_members(tar_path: AnyStr):
 
 
 def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
-    """Extracts tar file to same dir and returns path to extracted dir"""
+    """Extract tar file to same dir and returns path to extracted dir
+    :param path: path to tar file
+    :param mode: execution mode
+    :param logger: logger instance
+    :return: path to extracted dir
+    """
     import click
     import tarfile
     import os
@@ -51,7 +58,10 @@ def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
 
 
 def validate_dir(path: AnyStr) -> str:
-    """Validate path is an existent dir with rw permissions"""
+    """Validate path is an existent dir with rw permissions
+
+    :param path: path to validate
+    :return: validated path"""
     import os
     path = os.path.realpath(path)
     if not os.path.exists(path):

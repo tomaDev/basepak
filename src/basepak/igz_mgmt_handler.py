@@ -12,6 +12,7 @@ def client_context(
         user_from_credential_store: Optional[str] = 'USER',
         host_ip: Optional[str] = None,
 ) -> igz_mgmt.Client:
+    """Context manager for igz_mgmt.Client"""
     from . import log
     from .credentials import Credentials
 
@@ -35,7 +36,8 @@ def client_context(
 @retry(reraise=True, wait=wait_exponential(multiplier=2), stop=stop_after_attempt(10))
 def client_context_with_asm(
         force_apply_all: igz_mgmt.constants.ForceApplyAllMode = igz_mgmt.constants.ForceApplyAllMode.disabled
-):
+) -> (igz_mgmt.Client, igz_mgmt.AppServicesManifest):
+    """Context manager for igz_mgmt.Client and igz_mgmt.AppServicesManifest"""
     with client_context() as client:
         with igz_mgmt.AppServicesManifest.apply_services(client, force_apply_all) as asm:
             yield client, asm
@@ -48,7 +50,8 @@ def bulk_update_app_services(
         desired_states_map: Optional[Mapping[str, igz_mgmt.constants.AppServiceDesiredStates]] = None,
         services_to_restart: Iterable[str] = (),
         force_apply_all: igz_mgmt.constants.ForceApplyAllMode = igz_mgmt.constants.ForceApplyAllMode.disabled
-):
+) -> None:
+    """Bulk update of Iguazio app services"""
     from . import log
     with client_context_with_asm(force_apply_all) as (client, asm):
         logger = log.get_logger()
@@ -71,6 +74,12 @@ def bulk_update_app_services(
 
 
 def get_desired_states_stash(created: str, service_types: Iterable[str]) -> dict:
+    """
+    Get desired states for app services, filtered by type
+    :param created: timestamp of creation
+    :param service_types: types of services to stash
+    :return: service names and their desired states
+    """
     from . import time
     with client_context() as client:
         k8s_confing = igz_mgmt.K8sConfig.list(client)  # IG-22833 oy vey
@@ -84,6 +93,12 @@ def get_desired_states_stash(created: str, service_types: Iterable[str]) -> dict
 
 
 def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
+    """Ensure user exists in tenant
+    :param api_base_url: base URL of the iguazio platform API
+    :param username: username to ensure
+    :param password: password to set for the user on creation, if the user does not exist
+    :param tenant: tenant to ensure the user in
+    """
     from .credentials import Credentials
     from . import log, time, platform_api, consts
     logger = log.get_logger(name='short')
@@ -107,13 +122,6 @@ def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
         try:
             user = igz_mgmt.User.get_by_username(client, username)
         except igz_mgmt_exceptions.ResourceNotFoundException:
-            policies = [
-                igz_mgmt.constants.TenantManagementRoles.application_admin,
-                igz_mgmt.constants.TenantManagementRoles.data,
-                igz_mgmt.constants.TenantManagementRoles.developer,
-                igz_mgmt.constants.TenantManagementRoles.security_admin,
-                igz_mgmt.constants.TenantManagementRoles.service_admin,
-            ]
             logger.debug(f'User {username} not found. Creating...')
             email_user = username if tenant in ('default-tenant', '', None) else f'{username}-{tenant}'
             igz_mgmt.User.create(
@@ -123,7 +131,7 @@ def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
                 email=f'{email_user}@iguazio.com',
                 username=username,
                 password=password,
-                assigned_policies=policies,
+                assigned_policies=_get_mgmt_roles_for_user(),
             )
             logger.debug(f'User "{username}" created in tenant "{tenant}"')
             user = igz_mgmt.User.get_by_username(client, username)
@@ -137,3 +145,14 @@ def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
             logger.error(f'User "{username}" may have gotten deleted during the wait. '
                          f'Please inquire who deleted the user and why, before retrying')
             raise e
+
+
+def _get_mgmt_roles_for_user() -> list[igz_mgmt.constants.TenantManagementRoles]:
+    roles = igz_mgmt.constants.TenantManagementRoles
+    return [
+        roles.application_admin,
+        roles.data,
+        roles.developer,
+        roles.security_admin,
+        roles.service_admin,
+    ]

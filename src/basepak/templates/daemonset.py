@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Mapping
 
 
-def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] = None, filename: Optional[str] = None):
+def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
+    """Generate a k8s DaemonSet template
+    :param params: daemonset parameters
+    :param dump_folder: target folder
+    :param filename: manifest filename
+    :return: daemonset name
+    """
     from .. import consts, configer
     affinity = {}
     if params.get('NODE_NAMES'):
@@ -23,7 +29,7 @@ def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] 
         'apiVersion': 'apps/v1',
         'kind': 'DaemonSet',
         'metadata': {
-            'name': 'journal-monitor',  # todo: generalize
+            'name': params.get('DAEMONSET_NAME') or 'journal-monitor',
             'namespace': params['NAMESPACE'],
             'labels': consts.DEFAULT_LABELS | user_labels,
         },
@@ -61,3 +67,4 @@ def generate_template(params: dict[str, any], dump_folder: Optional[str | Path] 
                 }}}}
 
     configer.generate(template_daemonset, dump_folder, filename=filename)
+    return template_daemonset['metadata']['name']

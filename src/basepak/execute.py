@@ -17,11 +17,11 @@ def subprocess_stream(
 ) -> None:
     """Subprocess run with streaming output to logger.
 
-    @param cmd: str              - command to run
-    @param output_file: str      - file to write stdout to
-    @param error_file: str       - file to write stderr to
-    @param args: list[any]       - additional args to pass to subprocess call
-    @param kwargs: dict[any,any] - additional kwargs to pass to subprocess call
+    :param cmd:         command to run
+    :param output_file: file to write stdout to
+    :param error_file:  file to write stderr to
+    :param args:        additional args to pass to subprocess call
+    :param kwargs:      additional kwargs to pass to subprocess call
     """
     logger_name = kwargs.pop('logger_name', None)
     logger = kwargs.pop('logger', None)
@@ -51,6 +51,7 @@ def subprocess_stream(
 
 
 class Executable:
+    """Executable object to run commands with logging and error handling"""
     def __init__(self, name: str, *cmd_base: str, logger: logging.Logger = None,
                  run_kwargs: Dict[str, str | int] = None):
         self.name = self._cmd_base = name
@@ -65,26 +66,37 @@ class Executable:
         return self.with_('')
 
     @staticmethod
-    def assert_executable(name: str):
-        """Assert executable exists and runnable"""
+    def assert_executable(name: str) -> None:
+        """Assert executable exists and runnable
+        :param name: name of the executable"""
         if not shutil.which(name):
             raise NameError(f'Command "{name}" not found or has no executable permissions')
 
-    def set_args(self, *args: str):
+    def set_args(self, *args: str) -> None:
+        """Set arguments for the command"""
         self._args = self._cmd_base + ' '.join(args) + ' '
 
     def with_(self, *args: str, **kwargs: Dict[str, str]) -> str:
+        """Return current command with provided args and kwargs appended at the end"""
         ret = self._args + ' '.join(args)
         kwargs = {**self.run_kwargs, **kwargs}
         return ret + json.dumps(kwargs) if kwargs else ret
 
-    def show(self, *args: str, level: str = 'warning', **kwargs: Dict[str, str]):
+    def show(self, *args: str, level: str = 'warning', **kwargs: Dict[str, str]) -> None:
+        """Log the command
+        :param args: additional command positional arguments
+        :param kwargs: additional command kwargs
+        :param level: log level"""
         try:
             getattr(self.logger, level.lower())(self.with_(*args, **kwargs))
         except AttributeError:
             raise AttributeError(f'Logger for {self.name} has no method {level}')
 
-    def run(self, *args: str, **kwargs):
+    def run(self, *args: str, **kwargs) -> subprocess.CompletedProcess:
+        """Run the command
+        :param args: additional command positional arguments
+        :param kwargs: additional command kwargs
+        :return: run result"""
         kwargs.setdefault('errors', 'replace')
         kwargs.setdefault('capture_output', True)
         kwargs.setdefault('check', True)
@@ -94,6 +106,9 @@ class Executable:
         return subprocess.run(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
     def stream(self, *args: str, **kwargs):
+        """Run the command, streaming output to logger
+        :param args: additional command positional arguments
+        :param kwargs: additional command kwargs"""
         kwargs.setdefault('logger', self.logger)
         if kwargs.pop('show_cmd', True):
             self.show(*args, level=kwargs.pop('show_cmd_level', 'warning'))

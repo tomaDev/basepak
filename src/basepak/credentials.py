@@ -6,12 +6,15 @@ from typing import Mapping, Optional, Dict, Iterable, Type
 
 @functools.lru_cache()
 def load_from_dotenv(dotenv_path: Optional[str] = None) -> Dict[str, str]:
+    """Load environment variables from a .env file
+    :param dotenv_path: path to .env file
+    :return: dict of environment variables"""
     from dotenv import dotenv_values, find_dotenv
     return dotenv_values(str(dotenv_path or find_dotenv()), verbose=True)
 
 
 class Credentials:
-    """Singleton class to store credentials
+    """Singleton class to store credentials globally
 
     \b
     Sources supported:
@@ -31,8 +34,10 @@ class Credentials:
     def get(cls, user_mask: Optional[str] = None, default: Optional[str | dict] = None) -> Dict[str, str | dict] | None:
         """Get credentials for all users or a specific user
 
-        @user_mask: user mask to get credentials for. If None, return all credentials
-        @default: default value to return if user_mask is not found
+        :param user_mask: user mask to get credentials for. If None, return all credentials
+        :param default: default value to return if user_mask is not found
+
+        :return: dict of credentials for user_mask or all users
         """
         from copy import deepcopy
         if user_mask:
@@ -41,8 +46,13 @@ class Credentials:
 
     @classmethod
     def set_from_k8s(cls, user_mask: Optional[str] = None, namespace: Optional[str] = 'default-tenant',
-                     selector: Optional[str] = '', skip: Optional[Iterable] = None):
-        """Pull secret from k8s, and set credentials for user_mask"""
+                     selector: Optional[str] = '', skip: Optional[Iterable] = None) -> None:
+        """Pull secret from k8s, and set credentials for user_mask
+
+        :param user_mask: user mask to set credentials for
+        :param namespace: k8s namespace to pull secrets from
+        :param selector: k8s selector to filter secrets
+        :param skip: list of user masks to skip"""
         from .execute import Executable
         from . import log
         import json
@@ -75,7 +85,7 @@ class Credentials:
             dotenv_path: Optional[str] = None,
     ) -> Type[Credentials]:
         """Set credentials for users in spec and args
-        @param spec: dict of dicts to get credentials from a file:
+        :param spec: dict of dicts to get credentials from a file:
             {
                 USER_MASK: {
                     'USERNAME': USERNAME,
@@ -83,12 +93,13 @@ class Credentials:
                     },
                 ...,
             }
-        @param auths: dict of strings to get credentials from command line flags:
+        :param auths: dict of strings to get credentials from command line flags:
             {
                 USER_MASK: USERNAME:PASSWORD,
                 ...,
             }
-        @param dotenv_path: path to .env file. Defaults to environment variable BASEPAK_DOTENV_PATH
+        :param dotenv_path: path to .env file. Defaults to environment variable BASEPAK_DOTENV_PATH
+        :return: Credentials instance
         """
         import os
         import click

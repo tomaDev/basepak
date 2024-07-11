@@ -15,11 +15,13 @@ SHELLS = ('auto', 'bash', 'zsh')  # for completions. SHELLS[0] is the default
 
 
 class ClusterStatusActionMap(metaclass=ConstMeta):
+    """Map of cluster statuses to actions for the cluster"""
     CONTINUE = ('online', 'degraded', 'onlineMaintenance', 'readOnly')
     RETRY = ('unknown', 'upgrading', 'standby', 'maintenance')  # just in case we decide to implement retry
 
 
 class APIRoutes(metaclass=ConstMeta):
+    """Routes for the Iguazio API"""
     BASE = 'http://{}:8001/api'  # noqa: used in string formatting
     SESSIONS = '/sessions'
     FETCH_SESSIONS = '/fetch_sessions'
@@ -46,6 +48,7 @@ KUBE_CONFIG_DEFAULT_LOCATION = os.path.expanduser(os.environ.get('KUBECONFIG', '
 
 
 class LabelSelectors(metaclass=ConstMeta):
+    """Label selectors for Kubernetes resources of Iguazio platform components"""
     MLRUN_DB = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component=db'
     MLRUN_DEPLOYMENTS = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component=api'
     PIPELINES_DB = 'app=pipelines,component=mysql-kf'
@@ -56,6 +59,7 @@ class LabelSelectors(metaclass=ConstMeta):
 
 
 class FieldSelectors(metaclass=ConstMeta):
+    """Field selectors for Kubernetes resources of Iguazio platform components"""
     CONFIGMAPS = 'metadata.name!=kube-root-ca.crt'
     SECRETS = 'type!=kubernetes.io/service-account-token,' \
               'type!=helm.sh/release.v1,' \

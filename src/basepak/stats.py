@@ -9,6 +9,7 @@ from . import log, time
 
 
 class Tracker:
+    """Singleton class to track Task status and notes"""
     _instance = None
     _tasks: Dict[str, Dict[str, Dict[str, str]]] = dict()
     FAILURE_STATUSES = ['failed', 'timeout', 'unknown', 'aborted']
@@ -20,7 +21,7 @@ class Tracker:
         return cls._instance
 
     @classmethod
-    def upsert(cls, task: str, phase: str, status: str, description: Optional[str] = ''):
+    def upsert(cls, task: str, phase: str, status: str, description: Optional[str] = '') -> None:
         if not cls._tasks.get(task):
             cls._tasks[task] = dict()
         cls._tasks[task][phase] = {
@@ -30,12 +31,21 @@ class Tracker:
 
     @classmethod
     def get_task_last_failed_phase(cls, task: str) -> str:
+        """Get the last failed phase of a task
+        :param task: task name
+        :return: phase name if found, else empty string
+        """
         if not cls._tasks.get(task):
             return ''
         return next((x for x in cls._tasks[task].keys() if cls._tasks[task][x]['status'] in cls.FAILURE_STATUSES), '')
 
     @classmethod
     def get(cls, task: Optional[str] = None, phase: Optional[str] = None) -> dict:
+        """Get all tasks, a specific task, all phases of a task, or a specific phase of a task
+        :param task: task name
+        :param phase: phase name
+        :return: dict of tasks, a specific task, all phases of a task, or a specific phase of a task
+        """
         if not task and not phase:
             return cls._tasks
         if task and not phase:
@@ -47,6 +57,9 @@ class Tracker:
 
     @classmethod
     def status_summary(cls) -> dict:
+        """Get a summary of all tasks statuses
+        :return: {'failed': [{task: status}, ...], 'succeeded': [{task: status}, ...]}
+        """
         all_statuses = cls.get()
         return {
             'failed': [{k: v} for k, v in all_statuses.items() if Tracker.is_failed(k)],
@@ -55,6 +68,10 @@ class Tracker:
 
     @classmethod
     def task_summary(cls, task: str) -> Dict[str, str]:
+        """Get the statuses and notes of a task
+        :param task: task name
+        :return: {'status': status, 'notes': notes}
+        """
         if not cls._tasks.get(task):
             return dict()
         return {
@@ -65,13 +82,17 @@ class Tracker:
 
     @classmethod
     def is_task_failed(cls, task: str) -> bool:
+        """Check if a task has failed
+        :param task: task name
+        :return: True if task failed, False otherwise
+        """
         return cls.task_summary(task).get('status', 'unknown') in cls.FAILURE_STATUSES
 
     @classmethod
     def is_failed(cls, task: Optional[str] = None) -> bool:
-        """
-        @param task: task name to check, if None - check all tasks
-        @return: True if task failed, False otherwise
+        """Check if a task or all tasks have failed
+        :param task: task name to check, if None - check all tasks
+        :return: True if task failed, False otherwise
         """
         if not task:
             return any([cls.is_task_failed(x) for x in cls._tasks.keys()])
@@ -79,9 +100,9 @@ class Tracker:
 
     @classmethod
     def failed_tasks(cls, *tasks: str) -> List[str]:
-        """
-        @param tasks: list of tasks to check for summary status, if None - check all tasks
-        @return: List of tasks that failed
+        """Get a list of tasks that failed
+        :param tasks: list of task names to check for summary status, if None - check all tasks
+        :return: List of tasks that failed
         """
         if not tasks:
             tasks = cls._tasks.keys()
@@ -89,10 +110,20 @@ class Tracker:
 
     @classmethod
     def is_succeeded(cls, task: Optional[str] = None) -> bool:
+        """Check if a task or all tasks have succeeded
+        :param task: task name to check, if None - check all tasks
+        :return: True if task succeeded, False otherwise
+        """
         return not cls.is_failed(task)
 
 
 def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str) -> None:
+    """Validate OS thresholds
+    :param thresholds: thresholds to validate
+    :param logger: logger instance
+    :param mode: execution mode
+    :raises AssertionError: if threshold is exceeded
+    """
     if not thresholds:
         logger.warning('No thresholds provided - skipping')
         return

@@ -7,13 +7,13 @@ from pathlib import Path
 import ruyaml as yaml
 
 
-def generate(config: dict, destination_folder: Optional[str | Path] = None, filename: Optional[str] = None):
+def generate(config: dict, destination_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> None:
     """Generate a yaml file from a python dictionary. Adapted from:
     https://anthonyhawkins.medium.com/is-python-the-perfect-json-yaml-templating-engine-c5c1b32418f6
 
-    @param dict config: The python dictionary to generate the yaml file from
-    @param str destination_folder: The folder to write the yaml file to
-    @param str filename: The name of the yaml file to write to
+    :param config: The python dictionary to generate the yaml file from
+    :param destination_folder: The folder to write the yaml file to
+    :param filename: The name of the yaml file to write to
     """
     frame = inspect.stack()[1]
     module = inspect.getmodule(frame[0])

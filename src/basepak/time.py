@@ -22,6 +22,10 @@ def _make_timedelta_pattern(patterns: List[List[str]]) -> str:
 
 @functools.lru_cache()
 def str_to_timedelta(time_str: str) -> timedelta:
+    """Convert a string to a timedelta object
+    :param time_str: string representation of time
+    :return: timedelta object
+    """
     regex = re.compile(_make_timedelta_pattern(SUPPORTED_TIME_NOTATION))
     parts = regex.match(time_str)
     if not parts:
@@ -32,28 +36,52 @@ def str_to_timedelta(time_str: str) -> timedelta:
 
 
 def str_to_mmin(time_str: str) -> int:
+    """Convert a string to minutes
+    :param time_str: string representation of time
+    :return: minutes
+    """
     return int(str_to_timedelta(time_str).total_seconds() // 60)
 
 
 def str_to_seconds(value: Optional[str] = None) -> int:
+    """Convert a string to seconds
+    :param value: string representation of time
+    :return: seconds
+    """
     if not value:
         return 0
     return int(str_to_timedelta(value).total_seconds())
 
 
 def strptime(date_string: str, date_format: Optional[str] = DEFAULT_FORMAT) -> datetime:
+    """datetim.strptime wrapper with default format
+    :param date_string: date string
+    :param date_format: date format
+    :return: datetime object
+    """
     return datetime.strptime(date_string, date_format)
 
 
 def create_timestamp(format_: Optional[str] = DEFAULT_FORMAT) -> str:
+    """Create a timestamp string
+    :param format_: format string
+    :return: timestamp string in the specified format
+    """
     return datetime.strftime(datetime.now(), format_)
 
 
 def fromtimestamp(float_time: float) -> datetime:
+    """datetime.fromtimestamp wrapper
+    :param float_time: float representation of time
+    :return: datetime object
+    """
     return datetime.fromtimestamp(float_time)
 
 
 def sleep(seconds: float) -> None:
+    """time.sleep wrapper that handles negative values
+    :param seconds: seconds to sleep
+    """
     if seconds < 0:
         seconds = 0
     time.sleep(seconds)

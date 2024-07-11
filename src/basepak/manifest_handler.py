@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, AnyStr
 
 
 def validate_spec_keys_are_dicts(manifest: dict[str, any]) -> None:
@@ -14,7 +14,13 @@ def validate_spec_keys_are_dicts(manifest: dict[str, any]) -> None:
         validate_spec_keys_are_dicts(v)
 
 
-def load_and_validate(yaml_path: str | Path, ) -> dict:
+def load_and_validate(yaml_path: AnyStr | Path) -> dict:
+    """Load and validate yaml file
+    :param yaml_path: path to yaml file
+    :return: content
+    :raises click.BadParameter: if file is empty or not a dict
+    :raises click.FileError: if file is not found or not accessible
+    """
     import ruyaml as yaml
     import click
     from . import log
@@ -32,6 +38,11 @@ def load_and_validate(yaml_path: str | Path, ) -> dict:
 
 
 def get_hosts_info(igz_version: Optional[str] = None) -> dict[str, dict[str, str]]:
+    """Get hosts info from kompton inventory
+    :param igz_version: iguazio version
+    :return: hosts info
+    :raises click.BadParameter: if hosts file content structure is unexpected
+    """
     from . import consts
     import click
     igz_version_path = Path('/home/iguazio/igz/version.txt')

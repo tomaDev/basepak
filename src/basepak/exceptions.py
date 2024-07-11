@@ -13,6 +13,7 @@ from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_ex
 
 
 class CustomExecError(Exception):
+    """Custom exception for subprocess errors"""
     def __init__(self, returncode: int, message: str, stderr: str):
         self.returncode = returncode
         self.message = message
@@ -45,6 +46,7 @@ class UnexpectedResponse(requests.exceptions.RequestsWarning):
 
 
 def retry_strategy_too_many_requests(func):
+    """Decorator for retrying requests that return 429 status code"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         decorated_func = retry(
@@ -77,6 +79,7 @@ def retry_strategy_too_many_requests(func):
 
 
 def retry_strategy_default(func):
+    """Decorator with default retry strategy for exceptions"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         decorated_func = retry(

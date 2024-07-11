@@ -5,13 +5,13 @@ from typing import Iterable, Mapping
 
 def iter_to_case(input_: Iterable, target_case: str = 'UPPER_SNAKE_CASE',
                  skip_prefixes: str | list | None = None) -> Iterable | Mapping:
-    """
-    Converts all keys in the dictionaries of a list to a specified case
-
-    @param input_: The iterable to be converted
-    @param target_case: The target case for the dictionary keys, either "UPPER_SNAKE_CASE" or "camelBackCase"
-    @param skip_prefixes: skip converting trees, the keys of which start with any of these prefixes
-    @return: The converted iterable
+    """Convert all keys in the dictionaries of a list to a specified case.
+    Very useful for converting k8s case convention yaml data to python case convention dict and back
+    :param input_: The iterable to be converted
+    :param target_case: The target case for the dictionary keys, either "UPPER_SNAKE_CASE" or "camelBackCase"
+    :param skip_prefixes: skip converting trees, the keys of which start with any of these prefixes
+    :return: The converted iterable
+    :raises NotImplementedError: if the target case is not implemented
     """
     output_dict = {}
     if isinstance(input_, (str, int, float, bool)):
@@ -41,8 +41,11 @@ def iter_to_case(input_: Iterable, target_case: str = 'UPPER_SNAKE_CASE',
     return output_dict
 
 
-def camel_to_upper_snake_case(value):
-    """Convert CamelCase/camelBack to UPPER_SNAKE_CASE"""
+def camel_to_upper_snake_case(value: str) -> str:
+    """Convert CamelCase/camelBack to UPPER_SNAKE_CASE
+    :param value: string to convert
+    :return: converted string
+    """
     new_key = ''
     for i, letter in enumerate(value):
         if i > 0 and letter.isupper() and not value[i - 1].isupper():
@@ -51,8 +54,11 @@ def camel_to_upper_snake_case(value):
     return new_key
 
 
-def snake_to_camel_back_case(value):
-    """Convert SNAKE_CASE to camelBackCase"""
+def snake_to_camel_back_case(value: str) -> str:
+    """Convert SNAKE_CASE to camelBackCase
+    :param value: string to convert
+    :return: converted string
+    """
     new_key = ''
     capitalize_next = False
     for letter in value:
@@ -67,6 +73,14 @@ def snake_to_camel_back_case(value):
 
 
 def truncate(string: str, max_len: int, hash_len: int = 4, suffix: str = '') -> str:
+    """Truncate a string to a maximum length, adding a hash and suffix if necessary.
+    Useful for creating unique names for resources with a maximum length
+    :param string: string to truncate
+    :param max_len: maximum length of the string
+    :param hash_len: length of the hash to append
+    :param suffix: suffix to append
+    :return: truncated string
+    """
     if len(string) <= max_len:
         return string
     import hashlib
@@ -80,8 +94,37 @@ def truncate_middle(
         hash_len: int = 4,
         delimiter: str = '-'
 ) -> str:
+    """Truncate a string to a maximum length, adding a hash and delimiter if necessary.
+    Useful for creating unique names for resources with a maximum length, when you care more about the start and end
+    bits of the name (e.g. k8s resources)
+    :param string: string to truncate
+    :param max_len: maximum length of the string
+    :param hash_len: length of the hash to append
+    :param delimiter: delimiter to part the middle of the string
+    :return: truncated string
+    """
     if len(string) <= max_len:
         return string
     upto = (max_len + hash_len + len(delimiter)) // 2
     from_ = (max_len - hash_len - len(delimiter)) // 2
     return truncate(string[:upto + 1], upto, hash_len, delimiter) + string[-from_:]
+
+
+def split_on_first_letter(string: str) -> list[str]:
+    """Split a string into two strings on the first occurrence of a letter
+    :param string: string to split
+    :return: list of two strings"""
+    index = next((i for i, c in enumerate(string) if c.isalpha()), len(string))
+    return [string[:index], string[index:]]
+
+
+def clean_strings(string_list: list[str]) -> list[str]:
+    """Split, strip and prune empties for a list of strings
+    :param string_list: list of strings
+    :return: cleaned list of strings
+    """
+    cleaned_list = []
+    for string in string_list:
+        parts = [part for part in string.split() if part]
+        cleaned_list.extend(parts)
+    return cleaned_list

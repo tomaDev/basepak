@@ -5,7 +5,7 @@ import logging
 import re
 import shutil
 from functools import lru_cache, partial
-from typing import Optional, Mapping
+from typing import Optional, Mapping, Callable
 
 import rich
 from rich.logging import RichHandler
@@ -35,6 +35,12 @@ Table = partial(rich.table.Table, header_style='bold magenta')  # noqa
 
 
 def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:
+    """Redact a string, leaving only the last `plaintext_suffix_length` characters unmasked
+    :param string: string to redact
+    :param mask: mask character to use. Default is '*'
+    :param plaintext_suffix_length: number of characters to leave unmasked at the end of the string. Default is 4
+    :return: redacted string
+    """
     if len(string) <= plaintext_suffix_length:
         return mask * len(string)
     redacted = (mask if char not in ('-', ' ') else char for char in string[:-plaintext_suffix_length])
@@ -42,6 +48,7 @@ def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: 
 
 
 class MaskingFilter(logging.Filter):
+    """Filter to mask sensitive information in log messages"""
     def filter(self, record: logging.LogRecord):
         if type(record.msg) not in (str, bytes):
             record.msg = str(record.msg)
@@ -76,18 +83,36 @@ class _RichRichHandler(_BaseRichHandler):
 
 
 class ShortRichHandler(_RichRichHandler):
+    """Short RichHandler for logging messages
+
+    Example:
+
+    15:30:27 INFO     message
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFormatter(logging.Formatter(fmt='%(message)s', datefmt='%X', ))
 
 
 class LongRichHandler(_RichRichHandler):
+    """Long RichHandler for logging messages
+
+    Example:
+
+    2021-10-01 15:30:27.123456 INFO     message
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFormatter(logging.Formatter(fmt='%(message)s', datefmt='%Y-%m-%d %H:%M:%S.%s', ))
 
 
 class PlainRichHandler(_BaseRichHandler):
+    """Plain RichHandler for logging messages
+
+    Example:
+
+    message
+    """
     def emit(self, record):
         log_entry = self.format(record)
         self.console.print(log_entry)
@@ -101,6 +126,11 @@ SUPPORTED_LOGGERS = {
 
 
 def name_to_handler(name: str) -> logging.StreamHandler:
+    """Retrieve a log stream handler
+    :param name: name of the handler
+    :return: handler instance
+    :raises ValueError: if the handler name is not supported
+    """
     try:
         return SUPPORTED_LOGGERS[name]()
     except KeyError:
@@ -109,11 +139,11 @@ def name_to_handler(name: str) -> logging.StreamHandler:
 
 @lru_cache()
 def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
-    """Retrieve or create a globally scoped logger based on the given name and level
+    """Retrieve or create a globally scoped logger
 
-    @param name: Name of the logger, which dictates its configuration. Default is 'short'.
-    @param level: Log level for the logger. If None, will adopt level of first found existing logger. Default is INFO.
-    @return logger: Configured logger instance
+    :param name: logger name, which dictates its configuration. Default is 'short'
+    :param level: instance Log level. If None, will adopt level of first found existing logger. Else, default is INFO
+    :return: Configured logger instance
     """
     name = name or 'short'
     if name in LOGGERS:
@@ -136,13 +166,14 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def log_as(syntax: str, data: Mapping | str, printer=None, yaml_default_flow_style: bool = True):
+def log_as(syntax: str, data: Optional[Mapping | str] = None, printer: Optional[Callable] = None,
+           yaml_default_flow_style: Optional[bool] = True) -> None:
     """Print data to console as file
 
-    @param syntax  - supported formatting syntax: yaml, json
-    @param data    - data to print
-    @param printer - printer function to use, defaults to logger.info
-    @param yaml_default_flow_style - yaml style. True - Flow style for brevity. False - Block style for readability
+    :param syntax: supported formatting syntax: yaml, json
+    :param data: data to print
+    :param printer: printer function to use, defaults to logger.info
+    :param yaml_default_flow_style: yaml style. True - Flow style for brevity. False - Block style for readability
     """
     if not data:
         return

@@ -7,7 +7,7 @@ import logging
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Callable
 
 
 class Eventer(ABC):
@@ -51,7 +51,10 @@ class Task(ABC):
     def __call__(self, *args, **kwargs) -> any:
         return self.__init__(*args, **kwargs)
 
-    def post_status(self, status: Optional[str] = None, *args, **kwargs):
+    def post_status(self, status: Optional[str] = None, *args, **kwargs) -> None:
+        """Save task status to tracker and post to eventer
+        :param status: task status
+        """
         self.status = status or self.status
         try:
             event = getattr(self.eventer, f'send_{self.status}')
@@ -63,12 +66,15 @@ class Task(ABC):
         event(self.name, self.get_phase, *args, **kwargs)
 
     @classmethod
-    def monitor_raise_on_fail(cls, print_prefix: Optional[str] = ''):
-        """Convenience decorator to manage task phasing and status reporting, and raise on failure"""
+    def monitor_raise_on_fail(cls, print_prefix: Optional[str] = '') -> Callable:
+        """Convenience decorator to manage task phasing and status reporting, and raise on failure
+        :param print_prefix: prefix for print messages
+        :return: decorator
+        """
         return cls.monitor(print_prefix=print_prefix, raise_on_fail=True)
 
     @classmethod
-    def monitor(cls, print_prefix: Optional[str] = '', raise_on_fail: Optional[bool] = False):
+    def monitor(cls, print_prefix: Optional[str] = '', raise_on_fail: Optional[bool] = False) -> Callable:
         """Decorator to manage task phasing and status reporting
 
         Caller must include these attributes in the decorated class:
@@ -76,6 +82,10 @@ class Task(ABC):
         - post_status
         - status
         - logger
+
+        :param print_prefix: prefix for print messages
+        :param raise_on_fail: toggle whether raise on failure
+        :return: decorator
         """
         def decorator(func):
             def wrapper(self, *args, **kwargs):
@@ -147,13 +157,18 @@ class Task(ABC):
 
     @property
     def get_phase(self) -> str:
+        """Get the task phase"""
         return self._phase
 
-    def set_phase(self, phase: str):
+    def set_phase(self, phase: str) -> None:
+        """Set the task phase
+        :param phase: phase name
+        """
         self._phase = phase
         self.status = 'pending'
 
     def run(self, *args, **kwargs):
+        """Run the task phases"""
         self.logger.debug(f'Plan {self.name} started run')
         for phase in self.phases:
             try:
@@ -166,6 +181,7 @@ class Task(ABC):
 
 
 class Plan(Task):
+    """Generic plan class for managing tasks"""
     from enum import Enum
     from typing import List, Dict, Sequence, Optional
 
@@ -177,7 +193,10 @@ class Plan(Task):
         self.add_tasks(tasks, session, eventer, logger, spec)
         self.post_status()
 
-    def add_tasks(self, plan: Sequence[str], *args, **kwargs):
+    def add_tasks(self, plan: Sequence[str], *args, **kwargs) -> None:
+        """Add tasks to the plan
+        :param plan: sequence of task names
+        """
         if not plan:
             self.logger.warning('No tasks to add')
             return
@@ -187,19 +206,34 @@ class Plan(Task):
                 continue
             self.tasks.append(self.task_map[task](task, *args, **kwargs))
 
-    def require(self, *args, **kwargs):
+    def require(self, *args, **kwargs) -> Dict[str, List[str]]:
+        """Run the require phase for all tasks
+        :return: results
+        """
         return self._iter_tasks('require', *args, **kwargs)
 
-    def setup(self, *args, **kwargs):
+    def setup(self, *args, **kwargs) -> Dict[str, List[str]]:
+        """Run the setup phase for all tasks
+        :return: results
+        """
         return self._iter_tasks('setup', *args, **kwargs)
 
-    def execute(self, *args, **kwargs):
+    def execute(self, *args, **kwargs) -> Dict[str, List[str]]:
+        """Run the execute phase for all tasks
+        :return: results
+        """
         return self._iter_tasks('execute', *args, **kwargs)
 
-    def validate(self, *args, **kwargs) -> dict:
+    def validate(self, *args, **kwargs) -> Dict[str, List[str]]:
+        """Run the validate phase for all tasks
+        :return: results
+        """
         return self._iter_tasks('validate', *args, **kwargs)
 
-    def _iter_tasks(self, phase_name, *args, **kwargs):
+    def _iter_tasks(self, phase_name, *args, **kwargs) -> Dict[str, List[str]]:
+        """Run the phase for each task
+        :param phase_name: phase name
+        :return: results"""
         def phase_func(self, *args, **kwargs):  # noqa
             self.logger.debug(f'{phase_name=}\ntasks={[task.name for task in self.tasks]}')
             if self.exec_mode == 'dry-run':

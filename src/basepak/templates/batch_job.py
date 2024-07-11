@@ -26,6 +26,12 @@ POD_SPEC_DEFAULT = {
 
 
 def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
+    """Generate a k8s Job template
+    :param params: job parameters
+    :param dump_folder: target folder
+    :param filename: manifest filename
+    :return: job name
+    """
     import os
     from .. import consts, configer, time, strings
     security_context = {} if params.get('-securityContext') is False else {

@@ -3,11 +3,15 @@ from __future__ import annotations
 import io
 import logging
 import os
-from typing import List
+from typing import List, AnyStr
 
 
-def tail(file_path: str | bytes, n: int) -> List[str]:
-    """Tails the last n lines of a file"""
+def tail(file_path: AnyStr, n: int) -> List[str]:
+    """Tails the last (roughly) n lines of a file. Some minor variation was observed for irregular streams
+    :param file_path: path to file
+    :param n: number of lines to tail
+    :return: list of text lines
+    """
     with open(file_path, 'rb') as file:
         file.seek(0, os.SEEK_END)
         buffer = io.BytesIO()
@@ -23,13 +27,15 @@ def tail(file_path: str | bytes, n: int) -> List[str]:
         return buffer.read().decode(errors='replace').splitlines()
 
 
-def validate_pattern(path: str | bytes, pattern: str, logger: logging.Logger, num_of_lines: int = 100) -> bool:
+def validate_pattern(path: AnyStr, pattern: str, logger: logging.Logger, num_of_lines: int = 100) -> bool:
     """Tails the last n lines of a file and checks if pattern is in any of them
     :param path: path to file
     :param pattern: pattern to look for
     :param logger: logger
     :param num_of_lines: number of lines to tail
-    :return: True if pattern is found, raise AssertionError otherwise"""
+    :return: True if pattern is found
+    :raises AssertionError: if pattern is not found
+    """
     logger.info(f'Tailing last {num_of_lines} lines of {path}')
     lines = tail(path, num_of_lines)
     if not any(pattern in line for line in lines):

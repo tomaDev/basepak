@@ -1,9 +1,18 @@
+from typing import Callable
+
 import click
 
 
-def group_lock(func):
-    """Lock decorator for a single node. Collisions are possible in multi-node, since we allow different steps to run
-    from different machines in the same environment. Please avoid scheduling the same step on more than one node"""
+def group_lock(func: Callable) -> Callable:
+    """Global Lock decorator for a single node. This lock allows runs from different nodes in the same cluster, so
+    collisions are possible in multi-node
+    Please avoid scheduling the same step on more than one node!
+
+    Global lock file is at /tmp/{cli_name}/{click_group_name}.lock on the machine where the command is run.
+
+    :param func: function to decorate. click context must be provided to the function as an arg/kwarg
+    :return: decorated function
+    """
     import functools
     import os
     import fcntl
@@ -44,24 +53,27 @@ def group_lock(func):
     return wrapper
 
 
-def clean_locks(ctx: click.Context):
-    """Forcefully remove lock files. Use with caution!"""
+def clean_locks(ctx: click.Context) -> int:
+    """Forcefully remove lock files. Use with caution!
+    :param ctx: click context
+    :return: 0 if successful, else raise
+    """
     from glob import glob
     import os
-    success = True
 
     lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
     paths = glob(os.path.join(lock_file_dir, '*.lock'))
     if not paths:
         click.echo('No lock files found')
         return 0
+    success = True
     for path in paths:
         try:
             os.remove(path)
             click.echo(path)
         except Exception as e:  # usually it's a PermissionError
             success = False
-            click.echo(f'{path}: {e}')
+            click.echo(f'{path}: {e}', err=True)
     if not success:
         raise click.ClickException('Some lock files could not be removed')
     return 0
