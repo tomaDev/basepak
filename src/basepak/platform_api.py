@@ -476,8 +476,8 @@ def get_storage_stats(session: requests.Session, base_url: str, units: Optional[
     :raises ValueError: if the storage pools data is missing
     """
     pools_data = get_storage_pools_data(session, base_url)
-    usable_capacity = Unit.iterable_to_unit(x['attributes']['usable_capacity'] for x in pools_data)
-    free_space = Unit.iterable_to_unit(x['attributes']['free_space'] for x in pools_data)
+    usable_capacity = Unit.reduce(x['attributes']['usable_capacity'] for x in pools_data)
+    free_space = Unit.reduce(x['attributes']['free_space'] for x in pools_data)
     result = {'usable-capacity': str(usable_capacity.as_unit(units)).strip()}
     try:
         used_capacity = usable_capacity - free_space  # If platform flaky, api call may return with missing fields
