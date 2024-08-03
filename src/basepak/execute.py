@@ -65,11 +65,15 @@ class Executable:
     def __repr__(self):
         return self.with_('')
 
-    @staticmethod
-    def assert_executable(name: str) -> None:
+    def assert_executable(self, name: Optional[str] = None) -> None:
         """Assert executable exists and runnable
-        :param name: name of the executable"""
-        if not shutil.which(name):
+        :param name: name of the executable. If None, uses the first word (args[0]) of the command base
+        :raises NameError: if executable not found or not runnable
+        :raises ValueError: if name is an empty string
+        """
+        if name == '':
+            raise ValueError('Empty string is not a valid name! Use None to assert args[0] of the command base')
+        if not shutil.which(name or self._cmd_base.split()[0]):
             raise NameError(f'Command "{name}" not found or has no executable permissions')
 
     def set_args(self, *args: str) -> None:

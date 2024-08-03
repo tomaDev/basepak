@@ -57,10 +57,10 @@ extra-dependencies = [
   "mypy>=1.0.0",
 ]
 [tool.hatch.envs.types.scripts]
-check = "mypy --install-types --non-interactive {args:src/basepak tests}"
+check = 'mypy --install-types --non-interactive {args:src/basepak tests}'
 
 [tool.hatch.envs.basepak]
-installer = "uv"
+installer = 'uv'
 dependencies = [
         # urllib3 is only used here as a dependency of requests.
         # restricting version due to end of support for OpenSSL 1.0 (github.com/urllib3/urllib3/issues/2168)
@@ -78,17 +78,26 @@ dependencies = [
         'igz-mgmt',
 ]
 
+[tool.hatch.envs.docs]
+dependencies = [
+  'mkdocs'
+]
+
+[tool.hatch.envs.docs.scripts]
+build = 'mkdocs build --clean --strict'
+serve = 'mkdocs serve --dev-addr localhost:8000'
+
 [tool.coverage.run]
-source_pkgs = ["basepak", "tests"]
+source_pkgs = ['basepak', 'tests']
 branch = true
 parallel = true
 omit = [
-  "src/basepak/__about__.py",
+  'src/basepak/__about__.py',
 ]
 
 [tool.coverage.paths]
-basepak = ["src/basepak", "*/basepak/src/basepak"]
-tests = ["tests", "*/basepak/tests"]
+basepak = ['src/basepak', '*/basepak/src/basepak']
+tests = ['tests', '*/basepak/tests']
 
 [tool.coverage.report]
 exclude_lines = [
