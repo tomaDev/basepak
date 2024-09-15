@@ -1,40 +1,40 @@
 [build-system]
 requires = [
-    "hatchling",
-    "hatch-semver",
+    'hatchling',
+    'hatch-semver',
 ]
-build-backend = "hatchling.build"
+build-backend = 'hatchling.build'
 
 [tool.hatch.build.targets.sdist]
 exclude = [
-  "/.github",
-  "/docs",
+  '/.github',
+  '/docs',
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/basepak"]
+packages = ['src/basepak']
 
 
 [project]
-name = "basepak"
-dynamic = ["version"]
+name = 'basepak'
+dynamic = ['version']
 description = ''
-readme = "README.md"
-requires-python = ">=3.9"
-license = "MIT"
-keywords = ["iguazio", "bakpak"	]
+readme = 'README.md'
+requires-python = '>=3.9'
+license = 'MIT'
+keywords = ['iguazio', 'bakpak'	]
 authors = [
-  { name = "tomaDev", email = "genins21@gmail.com" },
+  { name = 'tomaDev', email = 'genins21@gmail.com' },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+    'Development Status :: 4 - Beta',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Programming Language :: Python :: Implementation :: PyPy',
 ]
 dependencies = [
         # urllib3 is only used here as a dependency of requests.
@@ -55,21 +55,21 @@ dependencies = [
 [project.optional-dependencies]
 
 [project.urls]
-Documentation = "https://github.com/tomaDev/basepak#readme"
-Issues = "https://github.com/tomaDev/basepak/issues"
-Source = "https://github.com/tomaDev/basepak"
+Documentation = 'https://github.com/tomaDev/basepak#readme'
+Issues = 'https://github.com/tomaDev/basepak/issues'
+Source = 'https://github.com/tomaDev/basepak'
 
 [tool.hatch.version]
-scheme = "semver"
-path = "src/basepak/__about__.py"
+scheme = 'semver'
+path = 'src/basepak/__about__.py'
 validate-bump = true
 
 [tool.hatch.envs.default]
-installer = "uv"
+installer = 'uv'
 
 [tool.hatch.envs.types]
 extra-dependencies = [
-  "mypy>=1.0.0",
+  'mypy>=1.0.0',
 ]
 [tool.hatch.envs.types.scripts]
 check = 'mypy --install-types --non-interactive {args:src/basepak tests}'
@@ -100,7 +100,7 @@ tests = ['tests', '*/basepak/tests']
 
 [tool.coverage.report]
 exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
+  'no cov',
+  'if __name__ == .__main__.:',
+  'if TYPE_CHECKING:',
 ]
