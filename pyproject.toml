@@ -14,6 +14,7 @@ exclude = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/basepak"]
 
+
 [project]
 name = "basepak"
 dynamic = ["version"]
@@ -36,6 +37,20 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+        # urllib3 is only used here as a dependency of requests.
+        # restricting version due to end of support for OpenSSL 1.0 (github.com/urllib3/urllib3/issues/2168)
+        # should remove if we remove requests (in favor of httpx or such)
+        # should upgrade (or remove) when we drop support for centos7 (data nodes to OpenSSL >=1.1.1)
+        'urllib3==1.26.19',
+        'requests',
+        'click',
+        'ruyaml',
+        'paramiko',
+        'tenacity',
+        'rich',
+        'psutil',
+        'python-dotenv',
+        'igz-mgmt',
 ]
 [project.optional-dependencies]
 
@@ -61,22 +76,6 @@ check = 'mypy --install-types --non-interactive {args:src/basepak tests}'
 
 [tool.hatch.envs.basepak]
 installer = 'uv'
-dependencies = [
-        # urllib3 is only used here as a dependency of requests.
-        # restricting version due to end of support for OpenSSL 1.0 (github.com/urllib3/urllib3/issues/2168)
-        # should remove if we remove requests (in favor of httpx or such)
-        # should upgrade (or remove) when we drop support for centos7 (data nodes to OpenSSL >=1.1.1)
-        'urllib3==1.26.19',
-        'requests',
-        'click',
-        'ruyaml',
-        'paramiko',
-        'tenacity',
-        'rich',
-        'psutil',
-        'python-dotenv',
-        'igz-mgmt',
-]
 
 [tool.hatch.envs.docs]
 dependencies = [
