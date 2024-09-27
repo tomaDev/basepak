@@ -27,9 +27,8 @@ def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
     import click
     import tarfile
     import os
-    path = os.path.realpath(path)
+    path = os.path.realpath(os.path.expanduser(path))
 
-    logger.info(f'realpath: {path}')
     if os.path.isdir(path):
         return path
 
@@ -63,7 +62,7 @@ def validate_dir(path: AnyStr) -> str:
     :param path: path to validate
     :return: validated path"""
     import os
-    path = os.path.realpath(path)
+    path = os.path.realpath(os.path.expanduser(path))
     if not os.path.exists(path):
         raise FileNotFoundError(f'{path} not found')
     if os.path.isfile(path):
