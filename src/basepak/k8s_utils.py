@@ -353,21 +353,18 @@ def await_k8s_job_completion(spec: dict) -> bool:
         raise RuntimeError(response.stderr)
 
     terminal_status = json.loads(kubectl.run(job_status_cmd).stdout)
-    kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={wait_interval}s', show_cmd=False)
+    kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s', show_cmd=False)
     if terminal_status.get('succeeded'):
         return True
 
     if status != terminal_status:
         logger.error('Running status does not match terminal status:')
         log.log_as('json', status, printer=logger_plain.warning)
-    logger.info(f'Terminal status: {status}')
+    logger.info('Terminal status:')
     log.log_as('json', terminal_status, printer=logger_plain.warning)
     if terminal_status.get('failed'):
-        conditions = terminal_status.get('conditions')
-        if not conditions:
-            RuntimeError(terminal_status)
-        raise RuntimeError(f'{conditions[0]} - {name}')
-    raise RuntimeError(f'Job failed with unexpected status - {status} - {name}')
+        raise RuntimeError(f'{name=}, {terminal_status=}')
+    raise RuntimeError(f'{name=}, unexpected status - {status}')
 
 
 def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl: Executable, retries: int,
