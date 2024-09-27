@@ -66,6 +66,7 @@ validate-bump = true
 
 [tool.hatch.envs.default]
 installer = 'uv'
+install_project = 'true'
 
 [tool.hatch.envs.types]
 extra-dependencies = [
@@ -76,6 +77,7 @@ check = 'mypy --install-types --non-interactive {args:src/basepak tests}'
 
 [tool.hatch.envs.basepak]
 installer = 'uv'
+install_project = 'true'
 
 [tool.hatch.envs.docs]
 dependencies = [
