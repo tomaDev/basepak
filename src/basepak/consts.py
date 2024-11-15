@@ -1,8 +1,9 @@
 import os
 
 from .classes import ConstMeta
-from importlib_metadata import version as package_version
 
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'VERSION')) as file:
+    package_version = next((line.strip() for line in file if line.strip()), '0.0.0')
 
 ##############################################################################################################
 # ### Inputs ###
