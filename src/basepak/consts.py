@@ -1,7 +1,9 @@
 import os
 
 from .classes import ConstMeta
-from .__about__ import __version__ as package_version
+
+with open('VERSION') as file:
+    package_version = next((line.strip() for line in file if line.strip()), None)
 
 
 ##############################################################################################################
