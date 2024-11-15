@@ -76,6 +76,9 @@ jobs:
           git commit -m "Bump version to ${{ needs.details.outputs.new_version }}"
           git push origin HEAD:main
 
+      - name: Fetch latest changes
+        run: git pull origin main
+
   setup_and_build:
     needs: [update_version]
     name: python
@@ -87,7 +90,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           version: "0.5.1"
-#          enable-cache: true
+          enable-cache: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -101,7 +104,7 @@ jobs:
         run: uv build
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
@@ -119,7 +122,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
