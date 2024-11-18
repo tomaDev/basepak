@@ -22,8 +22,7 @@ jobs:
         id: release
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION="$(cat ${{ env.VERSION_FILE }})"
-            NEW_VERSION="${VERSION%.*}.$((${VERSION##*.}+1))"
+            NEW_VERSION="$(cat ${{ env.VERSION_FILE }})"
             echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
             echo "New Version is $NEW_VERSION"
           else
@@ -50,40 +49,43 @@ jobs:
         run: |
           NEW_VERSION=${{ needs.details.outputs.new_version }}
           LATEST_VERSION=$latest_previous_version
-          if [ "$(printf '%s\n' "$LATEST_VERSION" "$NEW_VERSION" | sort -rV | head -n 1)" != "$NEW_VERSION" ] || [ "$NEW_VERSION" == "$LATEST_VERSION" ]; then
+          echo "New release version - $NEW_VERSION"
+          echo "latest PyPI version - $LATEST_VERSION"
+          if [ "$NEW_VERSION" == "$LATEST_VERSION" ]; then
+            echo "same version"
+            exit 1
+          elif [ "$(printf '%s\n' "$LATEST_VERSION" "$NEW_VERSION" | sort -rV | head -n 1)" != "$NEW_VERSION" ]; then
             echo "The new version $NEW_VERSION is not greater than the latest version $LATEST_VERSION on PyPI."
             exit 1
           else
             echo "The new version $NEW_VERSION is greater than the latest version $LATEST_VERSION on PyPI."
           fi
 
-  update_version:
-    needs: [details, check_pypi]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Bump version
-        run: printf "${{ needs.details.outputs.new_version }}" > ${{ env.VERSION_FILE }}
-
-      - name: Commit version bump
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ${{ env.VERSION_FILE }}
-          git commit -m "Bump version to ${{ needs.details.outputs.new_version }}"
-          git push origin HEAD:main
+#  update_version:
+#    needs: [details, check_pypi]
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: write
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Bump version
+#        run: printf "${{ needs.details.outputs.new_version }}" > ${{ env.VERSION_FILE }}
+#
+#      - name: Commit version bump
+#        run: |
+#          git config --global user.name "github-actions[bot]"
+#          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+#          git add ${{ env.VERSION_FILE }}
+#          git commit -m "Bump version to ${{ needs.details.outputs.new_version }}"
+#          git push origin HEAD:main
 
   setup_and_build:
-    needs: [update_version]
+    needs: [details, check_pypi]
     name: python
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: HEAD
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
