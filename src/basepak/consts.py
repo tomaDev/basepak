@@ -43,6 +43,7 @@ class APIRoutes(metaclass=ConstMeta):
 KOMPTON_DEPLOY_PATH_PATTERN = '/home/iguazio/installer/{igz_version}/deploy'
 KOMPTON_INVENTORY_HOSTS_PATH_PATTERN = KOMPTON_DEPLOY_PATH_PATTERN + '/inventory/hosts'
 
+MANOFEST_PATH = '/home/iguazio/igz/platform/manof/manofest.py'
 ##############################################################################################################
 # ### Kubernetes ###
 KUBE_CONFIG_DEFAULT_LOCATION = os.path.expanduser(os.environ.get('KUBECONFIG', '~/.kube/config'))
@@ -80,12 +81,6 @@ RELOAD_KUBECONFIG_PAYLOAD = {
         }
     }
 }
-BACKUP_NAMESPACE_DEFAULT = 'iguazio-backup'
-PERSISTENT_VOLUME_DEFAULT = 'iguazio-backup'
-STORAGE_CLASS_DEFAULT = 'iguazio-backup'
-STORAGE_VOLUME_NAME = 'storage'
-APP_SERVICE_TYPES_TO_DISABLE = ['jupyter']
-APP_SERVICES_TO_RESTART = ['mlrun']
 
 _PART_NAME = r'{range .items[*]}{.metadata.name}'
 JSONPATH_READY = _PART_NAME + r'{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
@@ -94,18 +89,3 @@ JSONPATH_CONDITIONS = _PART_NAME + r'{"\n"}{range .status.conditions[*]}{.type}{
 WAIT_INTERVAL = 30
 JOB_TIMEOUT_DEFAULT = '1h'
 RETRIES_DEFAULT = 6
-
-NUCLIO_PROJECTS_PREFIX = 'nuclio-projects'
-RUN_PHASE = 'run'
-##############################################################################################################
-# ### OS ###
-
-OS_THRESHOLDS = {
-    'CPU_PERCENT': 90,
-    'MEMORY_PERCENT': 90,
-}
-
-
-MANOFEST_PATH = '/home/iguazio/igz/platform/manof/manofest.py'
-
-CACHE_FOLDER = '.basepak'

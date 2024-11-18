@@ -128,7 +128,7 @@ SUPPORTED_LOGGERS = {
 def name_to_handler(name: str) -> logging.StreamHandler:
     """Retrieve a log stream handler
     :param name: name of the handler
-    :return: handler instance
+    :return: instance of the handler
     :raises ValueError: if the handler name is not supported
     """
     try:

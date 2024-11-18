@@ -32,7 +32,7 @@ class Tracker:
     @classmethod
     def get_task_last_failed_phase(cls, task: str) -> str:
         """Get the last failed phase of a task
-        :param task: task name
+        :param task: the task name
         :return: phase name if found, else empty string
         """
         if not cls._tasks.get(task):
@@ -42,7 +42,7 @@ class Tracker:
     @classmethod
     def get(cls, task: Optional[str] = None, phase: Optional[str] = None) -> dict:
         """Get all tasks, a specific task, all phases of a task, or a specific phase of a task
-        :param task: task name
+        :param task: the task name
         :param phase: phase name
         :return: dict of tasks, a specific task, all phases of a task, or a specific phase of a task
         """
@@ -69,7 +69,7 @@ class Tracker:
     @classmethod
     def task_summary(cls, task: str) -> Dict[str, str]:
         """Get the statuses and notes of a task
-        :param task: task name
+        :param task: the task name
         :return: {'status': status, 'notes': notes}
         """
         if not cls._tasks.get(task):
@@ -119,7 +119,7 @@ class Tracker:
 
 def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str) -> None:
     """Validate OS thresholds
-    :param thresholds: thresholds to validate
+    :param thresholds: the thresholds to validate
     :param logger: logger instance
     :param mode: execution mode
     :raises AssertionError: if threshold is exceeded

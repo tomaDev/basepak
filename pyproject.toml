@@ -13,6 +13,9 @@ Source = 'https://github.com/tomaDev/basepak'
 [tool.hatch.version]
 path = 'src/basepak/VERSION'
 pattern = '(?P<version>.*)'
+validate-bump = true
+scheme = 'semver'
+
 
 [project]
 name = 'basepak'

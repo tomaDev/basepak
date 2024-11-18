@@ -14,7 +14,7 @@ def generate_template(params: Mapping) -> str:
             'labels': consts.DEFAULT_LABELS | user_labels,
         },
         'spec': {
-            'storageClassName': params.get('STORAGE_CLASS', consts.STORAGE_CLASS_DEFAULT),  # not 'or', to allow empty
+            'storageClassName': params.get('STORAGE_CLASS', ''),
             'accessModes': params.get('ACCESS_MODES', ['ReadWriteMany']),
             'resources': {
                 'requests': {

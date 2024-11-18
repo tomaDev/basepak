@@ -250,7 +250,7 @@ class DummyPlatformEvents(PlatformEvents):
 
 def get_payload_body(type_: str, attributes: dict) -> dict:
     """Get the payload body for the given type
-    :param type_: payload type
+    :param type_: the payload type
     :param attributes: payload attributes
     :return: payload body
     """

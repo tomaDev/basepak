@@ -54,7 +54,7 @@ def str_to_seconds(value: Optional[str] = None) -> int:
 
 
 def strptime(date_string: str, date_format: Optional[str] = DEFAULT_FORMAT) -> datetime:
-    """datetim.strptime wrapper with default format
+    """datetime.strptime wrapper with default format
     :param date_string: date string
     :param date_format: date format
     :return: datetime object

@@ -162,7 +162,7 @@ class Task(ABC):
 
     def set_phase(self, phase: str) -> None:
         """Set the task phase
-        :param phase: phase name
+        :param phase: the phase name
         """
         self._phase = phase
         self.status = 'pending'
@@ -207,7 +207,7 @@ class Plan(Task):
             self.tasks.append(self.task_map[task](task, *args, **kwargs))
 
     def require(self, *args, **kwargs) -> Dict[str, List[str]]:
-        """Run the require phase for all tasks
+        """Run the Require phase for all tasks
         :return: results
         """
         return self._iter_tasks('require', *args, **kwargs)

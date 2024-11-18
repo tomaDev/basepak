@@ -57,6 +57,7 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
     job_name = strings.truncate_middle(params['JOB_NAME'])
     user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
     user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'true')
+    volume_name = params.get('VOLUME_NAME') or 'default-volume-name'
     template_batch_job = {
         'apiVersion': 'batch/v1',
         'kind': 'Job',
@@ -75,7 +76,7 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
                         # stable instead of latest, to avoid unnecessary pulls
                         'image': params.get('JOB_IMAGE') or params.get('DEFAULT_IMAGE') or 'busybox:stable',
                         'volumeMounts': [{
-                                'name': consts.STORAGE_VOLUME_NAME,
+                                'name': volume_name,
                                 'mountPath': params['JOB_MOUNT_PATH'],
                         }],
                         'command': params.get('COMMAND') or [],
@@ -85,7 +86,7 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
                     }],
                     **pod_spec,
                     'volumes': [{
-                        'name': consts.STORAGE_VOLUME_NAME,
+                        'name': volume_name,
                         'persistentVolumeClaim': {
                             'claimName': params['PERSISTENT_VOLUME_CLAIM_NAME'],
                         }}]}}}}
