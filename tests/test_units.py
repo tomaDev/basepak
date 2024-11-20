@@ -1,0 +1,132 @@
+import pytest
+from basepak.units import Unit
+
+
+def test_unit_initialization():
+    unit = Unit("1024 B")
+    assert unit.value == 1024
+    assert unit.unit == "B"
+
+    unit = Unit("1 KiB")
+    assert unit.value == 1
+    assert unit.unit == "KiB"
+
+    unit = Unit("1.5 MB")
+    assert unit.value == 1.5
+    assert unit.unit == "MB"
+
+    with pytest.raises(ValueError):
+        Unit("InvalidInput")
+
+
+def test_unit_conversion():
+    unit = Unit("1024 B")
+    assert unit.convert_to("KiB") == 1.0
+    assert unit.convert_to("KB") == 1.024
+
+    unit = Unit("1 MiB")
+    assert unit.convert_to("KiB") == 1024
+    assert unit.convert_to("MB") == 1.048576
+
+    with pytest.raises(ValueError):
+        unit.convert_to("UnsupportedUnit")
+
+
+def test_unit_adjustment():
+    unit = Unit("1024 B")
+    adjusted = unit.adjust_unit()
+    assert adjusted.value == 1.0
+    assert adjusted.unit == "KiB"
+
+    unit = Unit("1024 KiB")
+    adjusted = unit.adjust_unit()
+    assert adjusted.value == 1.0
+    assert adjusted.unit == "MiB"
+
+    unit = Unit("1000 B")
+    adjusted = unit.adjust_unit()
+    assert adjusted.value == 1000
+    assert adjusted.unit == "B"
+
+    unit = Unit("0 B")
+    adjusted = unit.adjust_unit()
+    assert adjusted.value == 0.0
+    assert adjusted.unit == "B"
+
+
+def test_unit_arithmetic_operations():
+    unit1 = Unit("1 KiB")
+    unit2 = Unit("1 KiB")
+
+    result = unit1 + unit2
+    assert result.value == 2.0
+    assert result.unit == "KiB"
+
+    result = unit1 - Unit("512 B")
+    assert result.value == 512
+    assert result.unit == "B"
+
+    result = unit1 * 2
+    assert result.value == 2.0
+    assert result.unit == "KiB"
+
+    result = unit1 * 10 / 2
+    assert result.value == 5
+    assert result.unit == "KiB"
+
+    with pytest.raises(ZeroDivisionError):
+        unit1 / Unit("0 B")  # Division by zero
+
+
+def test_unit_comparison():
+    unit1 = Unit("1 KiB")
+    unit2 = Unit("1024 B")
+
+    assert unit1 == unit2
+    assert unit1 >= unit2
+    assert unit1 <= unit2
+
+    assert unit1 > Unit("512 B")
+    assert unit1 < Unit("2 KiB")
+
+
+def test_unit_repr():
+    unit = Unit("1024 B")
+    assert repr(unit) == " 1.00 KiB"
+
+    unit = Unit("1.5 MB")
+    assert repr(unit) == " 1.50 MB"
+
+
+def test_unit_reduce():
+    units = [Unit("1024 B"), Unit("1 KiB"), Unit("512 B")]
+    result = Unit.reduce(units)
+    assert result.value == 2.5
+    assert result.unit == "KiB"
+
+    result = Unit.reduce(units, unit="MB")
+    assert result.value == 0.00256
+    assert result.unit == "MB"
+
+
+def test_unit_iterable_to_unit():
+    units = ["1024 B", "1 KiB", "512 B"]
+    result = Unit.iterable_to_unit(units, unit="KiB")
+    assert result.value == 2.5
+    assert result.unit == "KiB"
+
+
+def test_unit_invalid_operations():
+    unit = Unit("1 KiB")
+
+    with pytest.raises(ValueError):
+        unit + "InvalidInput"
+
+    with pytest.raises(ValueError):
+        unit - Unit("UnsupportedUnit")
+
+
+def test_unit_as_unit():
+    unit = Unit("1024 B")
+    assert unit.as_unit("KiB") == "1KiB"
+    assert unit.as_unit("auto") == " 1.00 KiB"

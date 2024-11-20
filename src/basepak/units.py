@@ -12,37 +12,42 @@ from . import strings
 
 @total_ordering
 @dataclass
-class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this class
-    """Size unit class. Generalizable to generic units, but in later Python versions there's the Pint library,
-    and right now there's no need"""
+class Unit:
+    """Small hand-rolled size unit class"""
+    # The Pint library is a robust framework for units - at 1.5MiB with a few extra deps, it's not needed for now"""
     _input_string: str = field(repr=False)
     value: float = field(init=False, compare=True)
     unit: str = field(init=False)
 
     ZERO_UNIT = '0 B'
-    UNIT_FACTORS = {
+    _UNIT_FACTORS_KILO = {
         'B':  1,    # Bytes only, no bits
+        'KB': 1000,
+        'MB': 1000 ** 2,
+        'GB': 1000 ** 3,
+        'TB': 1000 ** 4,
+        'PB': 1000 ** 5,
+    }
+    _UNIT_FACTORS_KIBI = {
+        'B':   1,    # Bytes only, no bits
         'K':   1024,
         'Ki':  1024,
         'KiB': 1024,
-        'KB': 1000,
         'M':   1024 ** 2,
         'Mi':  1024 ** 2,
         'MiB': 1024 ** 2,
-        'MB': 1000 ** 2,
         'G':   1024 ** 3,
         'Gi':  1024 ** 3,
         'GiB': 1024 ** 3,
-        'GB': 1000 ** 3,
         'T':   1024 ** 4,
         'Ti':  1024 ** 4,
         'TiB': 1024 ** 4,
-        'TB': 1000 ** 4,
         'P':   1024 ** 5,
         'Pi':  1024 ** 5,
         'PiB': 1024 ** 5,
-        'PB': 1000 ** 5,
     }
+
+    UNIT_FACTORS = {**_UNIT_FACTORS_KILO, **_UNIT_FACTORS_KIBI, }
 
     def __post_init__(self) -> None:
         input_list = strings.split_on_first_letter(self._input_string)
@@ -66,18 +71,19 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
         return value_in_bytes / self.UNIT_FACTORS[unit]
 
     def adjust_unit(self) -> 'Unit':
-        """Adjust the unit to the most appropriate one
+        """Adjust to the most human-readable form. Preferred scale - Kibibytes
         :return: adjusted unit
         """
         if self.value == 0:
             return Unit(self.ZERO_UNIT)
         value_in_bytes = self.value * self.UNIT_FACTORS[self.unit]
-        for unit, factor in reversed(list(self.UNIT_FACTORS.items())):
+        unit_factors = self._UNIT_FACTORS_KIBI if self.unit in self._UNIT_FACTORS_KIBI else self._UNIT_FACTORS_KILO
+        for unit, factor in reversed(list(unit_factors.items())):
             if value_in_bytes >= factor:
                 return Unit(f'{value_in_bytes / factor} {unit}')
 
     @staticmethod
-    def reduce(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
+    def reduce(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = None,
                operation: Optional[Callable] = sum) -> 'Unit':
         """Reduce an iterable of units to a single unit
         :param args: iterable of units
@@ -93,17 +99,26 @@ class Unit:  # todo: need to test numfmt --to=iec to replace huge chunks of this
                 arg = arg.convert_to('B')  # converting to bytes and not 'unit' to avoid float truncation
             candidates.append(arg)
 
-        ret = Unit(f'{operation(candidates)} {unit}').adjust_unit()
+        ret = Unit(f'{operation(candidates)} B')
+        if unit:
+            ret = Unit(f'{ret.convert_to(unit)} {unit}')
+        else :
+            ret = ret.adjust_unit()
         return ret
 
     @staticmethod
-    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = 'B',
+    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = None,
                          operation: Optional[Callable] = sum) -> 'Unit':
         return Unit.reduce(args, unit, operation)
 
     def __repr__(self):
         result = self.adjust_unit()
         return f'{result.value: .2f} {result.unit}'
+
+    def __eq__(self, other: Union['Unit', str]) -> bool:
+        if not isinstance(other, Unit):
+            other = Unit(other)
+        return self.value == other.convert_to(self.unit)
 
     def __lt__(self, other: Union['Unit', str]) -> bool:
         if not isinstance(other, Unit):
