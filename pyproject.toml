@@ -10,6 +10,11 @@ Documentation = 'https://github.com/tomaDev/basepak#readme'
 Issues = 'https://github.com/tomaDev/basepak/issues'
 Source = 'https://github.com/tomaDev/basepak'
 
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+]
+
 [tool.hatch.version]
 path = 'src/basepak/VERSION'
 pattern = '(?P<version>.*)'
@@ -33,6 +38,7 @@ classifiers = [
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: Implementation :: CPython',
     'Programming Language :: Python :: Implementation :: PyPy',
 ]
