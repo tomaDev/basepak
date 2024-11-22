@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import functools
-from typing import Mapping, Optional, Dict, Iterable, Type
+from collections.abc import Iterable, Mapping
+from typing import Dict, Optional, Type
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def load_from_dotenv(dotenv_path: Optional[str] = None) -> Dict[str, str]:
     """Load environment variables from a .env file
     :param dotenv_path: path to .env file
@@ -53,9 +54,10 @@ class Credentials:
         :param namespace: k8s namespace to pull secrets from
         :param selector: k8s selector to filter secrets
         :param skip: list of user masks to skip"""
-        from .execute import Executable
-        from . import log
         import json
+
+        from . import log
+        from .execute import Executable
         logger = log.get_logger()
         kubectl = Executable(
             'kubectl',
@@ -102,7 +104,9 @@ class Credentials:
         :return: Credentials instance
         """
         import os
+
         import click
+
         from . import log
         logger = log.get_logger()
         dotenv_path = dotenv_path or os.environ['BASEPAK_DOTENV_PATH']

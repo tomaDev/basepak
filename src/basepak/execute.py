@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 def subprocess_stream(

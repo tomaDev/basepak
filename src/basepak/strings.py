@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, Mapping
 import re
+from collections.abc import Iterable, Mapping
 
 
 def iter_to_case(input_: Iterable, target_case: str = 'UPPER_SNAKE_CASE',

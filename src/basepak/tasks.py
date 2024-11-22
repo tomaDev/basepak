@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from functools import partial
-
 import datetime
 import logging
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Optional, Callable
+from functools import partial
+from typing import Callable, Optional
 
 
 class Eventer(ABC):
@@ -91,6 +90,7 @@ class Task(ABC):
             def wrapper(self, *args, **kwargs):
                 import click
                 import requests
+
                 from .stats import Tracker
                 self.set_phase(func.__name__)
                 self.post_status('started')
@@ -135,7 +135,7 @@ class Task(ABC):
                             logger.error(notes)
                 self.post_status(status, description=str(notes))
                 logger.info(banner_pattern.format(self.status))
-                if raise_on_fail and not status in Tracker.SUCCESS_STATUSES:
+                if raise_on_fail and status not in Tracker.SUCCESS_STATUSES:
                     logger.error(notes)
                     raise click.Abort(notes)
                 return result
@@ -182,8 +182,9 @@ class Task(ABC):
 
 class Plan(Task):
     """Generic plan class for managing tasks"""
+    from collections.abc import Sequence
     from enum import Enum
-    from typing import List, Dict, Sequence, Optional
+    from typing import Dict, List, Optional
 
     def __init__(self, name: str, session, eventer: Eventer, logger: logging.Logger, spec: dict,
                  tasks: Optional[List[str | Enum]] = None, task_map: Optional[Dict[str, Task]] = None):
@@ -234,7 +235,7 @@ class Plan(Task):
         """Run the phase for each task
         :param phase_name: phase name
         :return: results"""
-        def phase_func(self, *args, **kwargs):  # noqa
+        def phase_func(self, *args, **kwargs):
             self.logger.debug(f'{phase_name=}\ntasks={[task.name for task in self.tasks]}')
             if self.exec_mode == 'dry-run':
                 return

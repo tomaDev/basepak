@@ -13,7 +13,7 @@ class Version:  # looseversion lib comes as a dep for rethinkdb driver. Consider
         """Parse input string into version parts and set as instance attributes"""
         parts = self._input_str.replace('-', '.').split('.')
 
-        # todo: move this part into IguazioVersion
+        # TODO: move this part into IguazioVersion
         for i, part in enumerate(parts.copy()):
             if part.startswith('b') and part[1:].isdigit():  # handle build numbers
                 parts[i] = part[1:]

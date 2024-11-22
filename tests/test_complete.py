@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import patch
-from basepak.complete  import  generate_script
+
+import pytest
+
+from basepak.complete import generate_script
 
 
 @pytest.fixture

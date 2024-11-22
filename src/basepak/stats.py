@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional, List, Callable
+from typing import Callable, Dict, List, Optional
 
 import psutil
 
@@ -160,4 +160,4 @@ def _get_load_avg() -> float:
 
 
 def _get_virtual_memory() -> float:
-    return psutil.virtual_memory()._asdict()['percent']  # noqa w0212
+    return psutil.virtual_memory()._asdict()['percent']  # w0212

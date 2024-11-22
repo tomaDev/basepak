@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+
 from basepak.log import (
     LOGGERS,
     SUPPORTED_LOGGERS,
@@ -12,7 +13,7 @@ from basepak.log import (
 )
 
 REDACTION_TEST_DATA = [
-    ("mysecretpassword", "************word"),  # noqa
+    ("mysecretpassword", "************word"),
     ("short", "*hort"),
     ("test", "****"),  # strings shorter than plaintext_suffix_length should be fully redacted
     ("1234567890", "******7890"),
@@ -26,7 +27,7 @@ def test_redact_str():
         assert redact_str(original) == expected
 
 def test_redact_str_custom_mask():
-    original = "mysecretpassword"  # noqa
+    original = "mysecretpassword"
     expected = "########password"
     assert redact_str(original, mask="#", plaintext_suffix_length=8) == expected
 

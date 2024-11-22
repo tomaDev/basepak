@@ -1,8 +1,8 @@
-from typing import Mapping
+from collections.abc import Mapping
 
 
 def generate_template(params: Mapping) -> str:
-    from .. import consts, configer
+    from .. import configer, consts
     user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
     user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'false')
     template_persistent_volume_claim = {

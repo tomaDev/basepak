@@ -20,7 +20,7 @@ def _make_timedelta_pattern(patterns: List[List[str]]) -> str:
     return ''.join(fr'((?P<{keyword}>\d+? *){notation})?' for keyword, notation in patterns)
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def str_to_timedelta(time_str: str) -> timedelta:
     """Convert a string to a timedelta object
     :param time_str: string representation of time

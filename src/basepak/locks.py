@@ -13,9 +13,9 @@ def group_lock(func: Callable) -> Callable:
     :param func: function to decorate. click context must be provided to the function as an arg/kwarg
     :return: decorated function
     """
+    import fcntl
     import functools
     import os
-    import fcntl
 
     from . import log
 
@@ -37,7 +37,7 @@ def group_lock(func: Callable) -> Callable:
         with open(lock_file_path, 'w') as lock_file:
             try:
                 fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except IOError:
+            except OSError:
                 logger.error(f'{func.__name__} is already running')
                 raise click.Abort()
             try:
@@ -58,8 +58,8 @@ def clean_locks(ctx: click.Context) -> int:
     :param ctx: click context
     :return: 0 if successful, else raise
     """
-    from glob import glob
     import os
+    from glob import glob
 
     lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
     paths = glob(os.path.join(lock_file_dir, '*.lock'))

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 
 def generate(config: dict, destination_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
@@ -15,6 +15,7 @@ def generate(config: dict, destination_folder: Optional[str | Path] = None, file
     """
     import inspect
     import os
+
     import ruyaml as yaml
     frame = inspect.stack()[1]
     module = inspect.getmodule(frame[0])

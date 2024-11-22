@@ -1,10 +1,11 @@
 import functools
 import os
-from typing import Optional, AnyStr
+from typing import AnyStr, Optional
 
 import click
 
-from . import __name__ as package_name, log
+from . import __name__ as package_name
+from . import log
 from .execute import Executable
 
 # Click's native shell_completion.py in v8.1 uses `complete -o nosort`, which is supported by bash 4.4+
@@ -99,7 +100,7 @@ def generate_script(
     profile_path = get_full_path(profile, profile_filename_default)
 
     source_cmd = f'source {script_path}'
-    with open(profile_path, 'r') as f:
+    with open(profile_path) as f:
         if source_cmd in [line.strip() for line in f.readlines()]:
             logger.info(f'Source command exists in {profile_path}\nSkipping')
             return 0

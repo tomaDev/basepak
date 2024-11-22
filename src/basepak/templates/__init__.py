@@ -1,3 +1,1 @@
-from . import persistent_volume_claim
-from . import batch_job
-from . import daemonset
+from . import batch_job, daemonset, persistent_volume_claim

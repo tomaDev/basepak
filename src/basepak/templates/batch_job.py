@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Optional, Mapping
-
+from typing import Optional
 
 POD_SPEC_DEFAULT = {
     # OnFailure - container restarts in the same pod on the same node.
@@ -33,7 +33,8 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
     :return: job name
     """
     import os
-    from .. import consts, configer, time, strings
+
+    from .. import configer, consts, strings, time
     security_context = {} if params.get('-securityContext') is False else {
         'securityContext': params.get('-securityContext') or {  # False infers user input. None infers missing
             'runAsUser': params.get('RUN_AS_USER') or os.geteuid(),

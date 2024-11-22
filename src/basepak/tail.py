@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import os
-from typing import List, AnyStr
+from typing import AnyStr, List
 
 
 def tail(file_path: AnyStr, n: int) -> List[str]:

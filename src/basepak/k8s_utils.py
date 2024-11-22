@@ -13,10 +13,11 @@ import functools
 import json
 import logging
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Set, Iterable, Dict, Optional
+from typing import Dict, Optional, Set
 
-from . import consts, time, log
+from . import consts, log, time
 from .execute import Executable, subprocess_stream
 from .versioning import Version
 
@@ -61,7 +62,7 @@ def print_namespace_events(namespace: str) -> None:
         pass
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_kubectl_version() -> Version:
     """Get kubectl version
 
@@ -244,7 +245,7 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
                 daemonset.generate_template(spec, dump_folder=spec['CACHE_FOLDER'], filename=filename)
                 kubectl.run('create --filename', str(spec['CACHE_FOLDER'] / f'{filename}.yaml'))
                 resp = get_status.run()
-        # todo: add support for other errors
+        # TODO: add support for other errors
         else:
             raise RuntimeError(resp.stderr)
     if spec['MODE'] == 'dry-run':

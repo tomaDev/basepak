@@ -3,6 +3,7 @@
 import hashlib
 
 import pytest
+
 from basepak.strings import (
     camel_to_upper_snake_case,
     clean_strings,

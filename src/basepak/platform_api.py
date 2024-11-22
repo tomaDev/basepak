@@ -6,14 +6,18 @@ import logging
 import socket
 import sys
 import time
+from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
-from typing import Tuple, Optional, Dict, List, Mapping, Union, Sequence, Callable, Iterable
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests
-from tenacity import retry, wait_fixed, retry_if_exception_type, stop_after_delay, RetryCallState
+from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
-from . import consts, log
-from . import exceptions  # noqa missing
+from . import (
+    consts,
+    exceptions,  # missing
+    log,
+)
 from .credentials import Credentials
 from .tasks import Eventer
 from .units import Unit
@@ -95,7 +99,7 @@ def run_request_retry_on_4xx(session: requests.Session, *, url: str, method: str
     return response
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _container_payload(container_name: str, description: str = '') -> dict:
     return {
         'data': {
@@ -219,7 +223,7 @@ class PlatformEvents(Eventer):
         if attributes['kind'] == self.attributes_for_failed_events['kind']:
             attributes['description'] = default_kind + ': ' + attributes['description']
         response = self.session.post(self.url, json=get_payload_body('event', attributes))
-        if response.status_code == 401:  # todo: make more generic. Non-events need reauth too
+        if response.status_code == 401:  # TODO: make more generic. Non-events need reauth too
             self.session, _ = start_api_session(self.credentials, self.url)
             response = self.session.post(self.url, json=get_payload_body('event', attributes))
         response.raise_for_status()
@@ -364,7 +368,7 @@ def _maybe_recalculate_storage_pools_stats(session, base_url, recalculate, msg_t
 
 
 @exceptions.retry_strategy_default
-@functools.lru_cache()
+@functools.lru_cache
 def get_app_services(api_base_url: str, session: requests.sessions.Session) -> list:
     """Get app services from the platform API
     :param api_base_url: base URL of the iguazio platform API
@@ -385,7 +389,7 @@ def get_app_service_status(app_services: Sequence, app_service_name: str) -> dic
 
 
 @exceptions.retry_strategy_default
-@functools.lru_cache()
+@functools.lru_cache
 def get_sysconfig(base_url: str, session: Optional[requests.sessions.Session] = None) -> dict:
     """Get initial system configuration from the platform API
     :param base_url: base URL of the iguazio platform API

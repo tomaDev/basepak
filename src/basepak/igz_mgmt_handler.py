@@ -1,10 +1,11 @@
 import os
+from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
-from typing import Optional, Iterable, Mapping
+from typing import Optional
 
 import igz_mgmt
 from igz_mgmt import exceptions as igz_mgmt_exceptions
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 @contextmanager
@@ -21,7 +22,7 @@ def client_context(
     if not creds:
         raise ValueError('No user credentials found')
     logger = log.get_logger()
-    endpoint = f'http://{host_ip}:8001' # noqa
+    endpoint = f'http://{host_ip}:8001'
     logger.info(f'User: {creds["USERNAME"]}')
     logger.info(endpoint)
     client = igz_mgmt.Client(endpoint=endpoint, username=creds['USERNAME'], password=creds['PASSWORD'], logger=logger)
@@ -43,8 +44,8 @@ def client_context_with_asm(
             yield client, asm
 
 
-# todo: document difference between K8sConfig.list and AppServicesManifest.get
-# todo: consider creating a separate context manager for asm derived from K8sConfig.list
+# TODO: document difference between K8sConfig.list and AppServicesManifest.get
+# TODO: consider creating a separate context manager for asm derived from K8sConfig.list
 @retry(reraise=True, wait=wait_exponential(multiplier=2), stop=stop_after_attempt(10))
 def bulk_update_app_services(
         desired_states_map: Optional[Mapping[str, igz_mgmt.constants.AppServiceDesiredStates]] = None,
@@ -99,8 +100,8 @@ def ensure_user(api_base_url: str, username: str, password: str, tenant: str):
     :param password: password to set for the user on creation, if the user does not exist
     :param tenant: tenant to ensure the user in
     """
+    from . import consts, log, platform_api, time
     from .credentials import Credentials
-    from . import log, time, platform_api, consts
     logger = log.get_logger(name='short')
     security_admin_creds = Credentials.get('SECURITY_ADMIN')
     logger.warning(f'Ensuring user "{username}" in {tenant=}')

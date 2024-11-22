@@ -8,7 +8,7 @@ from typing import Optional
 
 import requests
 from igz_mgmt import exceptions as igz_mgmt_exceptions
-from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, wait_random_exponential
 
 
 class CustomExecError(Exception):

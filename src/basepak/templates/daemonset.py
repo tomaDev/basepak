@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Optional, Mapping
+from typing import Optional
 
 
 def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
@@ -11,7 +12,7 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
     :param filename: manifest filename
     :return: daemonset name
     """
-    from .. import consts, configer
+    from .. import configer, consts
     affinity = {}
     if params.get('NODE_NAMES'):
         affinity['affinity'] = {

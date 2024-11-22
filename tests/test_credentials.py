@@ -1,8 +1,9 @@
+import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
-import os
+
 from basepak.credentials import Credentials
 
 dotenv_path = tempfile.mktemp()

@@ -17,4 +17,4 @@ def test_kubectl_dump():
     assert Path(tmp).read_text()
     os.unlink(tmp)
 
-# todo: mock k8s api responses to test the rest of the code
+# TODO: mock k8s api responses to test the rest of the code

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import Iterable, Union, Callable, Optional
+from typing import Callable, Optional, Union
 
 import click
 
@@ -70,7 +71,7 @@ class Unit:
         value_in_bytes = self.value * self.UNIT_FACTORS[self.unit]
         return value_in_bytes / self.UNIT_FACTORS[unit]
 
-    def adjust_unit(self) -> 'Unit':
+    def adjust_unit(self) -> Unit:
         """Adjust to the most human-readable form. Preferred scale - Kibibytes
         :return: adjusted unit
         """
@@ -83,8 +84,8 @@ class Unit:
                 return Unit(f'{value_in_bytes / factor} {unit}')
 
     @staticmethod
-    def reduce(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = None,
-               operation: Optional[Callable] = sum) -> 'Unit':
+    def reduce(args: Iterable[Union[Unit, str, int, float]], unit: Optional[str] = None,
+               operation: Optional[Callable] = sum) -> Unit:
         """Reduce an iterable of units to a single unit
         :param args: iterable of units
         :param unit: unit to convert to
@@ -107,25 +108,25 @@ class Unit:
         return ret
 
     @staticmethod
-    def iterable_to_unit(args: Iterable[Union['Unit', str, int, float]], unit: Optional[str] = None,
-                         operation: Optional[Callable] = sum) -> 'Unit':
+    def iterable_to_unit(args: Iterable[Union[Unit, str, int, float]], unit: Optional[str] = None,
+                         operation: Optional[Callable] = sum) -> Unit:
         return Unit.reduce(args, unit, operation)
 
     def __repr__(self):
         result = self.adjust_unit()
         return f'{result.value: .2f} {result.unit}'
 
-    def __eq__(self, other: Union['Unit', str]) -> bool:
+    def __eq__(self, other: Union[Unit, str]) -> bool:
         if not isinstance(other, Unit):
             other = Unit(other)
         return self.value == other.convert_to(self.unit)
 
-    def __lt__(self, other: Union['Unit', str]) -> bool:
+    def __lt__(self, other: Union[Unit, str]) -> bool:
         if not isinstance(other, Unit):
             other = Unit(other)
         return self.value < other.convert_to(self.unit)
 
-    def __add__(self, other: Union['Unit', str, float, int]) -> 'Unit':
+    def __add__(self, other: Union[Unit, str, float, int]) -> Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
@@ -133,7 +134,7 @@ class Unit:
         value = self.convert_to('M') + other.convert_to('M')  # setting to M to avoid float silliness
         return Unit(f'{value} M').adjust_unit()
 
-    def __sub__(self, other: Union['Unit', str, float, int]) -> 'Unit':
+    def __sub__(self, other: Union[Unit, str, float, int]) -> Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
@@ -141,7 +142,7 @@ class Unit:
         value = self.convert_to('M') - other.convert_to('M')  # setting to M to avoid float silliness
         return Unit(f'{value} M').adjust_unit()
 
-    def __mul__(self, other: Union['Unit', str, float, int]) -> 'Unit':
+    def __mul__(self, other: Union[Unit, str, float, int]) -> Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
@@ -149,7 +150,7 @@ class Unit:
         value = self.value * other.convert_to(self.unit)
         return Unit(f'{value} {self.unit}').adjust_unit()
 
-    def __truediv__(self, other: Union['Unit', str, float, int]) -> 'Unit':
+    def __truediv__(self, other: Union[Unit, str, float, int]) -> Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):

@@ -4,6 +4,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+
 from basepak import platform_api
 from basepak.tasks import Plan, Task
 
@@ -91,14 +92,14 @@ def test_plan_run_phases(mock_session, mock_eventer, mock_logger, task_map, capl
         plan.run()
         # Check that each phase was called for each task
         expected_messages = [
-            f'Requiring task1',
-            f'Requiring task2',
-            f'Setting up task1',
-            f'Setting up task2',
-            f'Executing task1',
-            f'Executing task2',
-            f'Validating task1',
-            f'Validating task2',
+            'Requiring task1',
+            'Requiring task2',
+            'Setting up task1',
+            'Setting up task2',
+            'Executing task1',
+            'Executing task2',
+            'Validating task1',
+            'Validating task2',
         ]
         for message in expected_messages:
             assert message in caplog.text

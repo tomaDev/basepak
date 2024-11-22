@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
+
 from basepak.time import (
     DEFAULT_FORMAT,
     create_timestamp,

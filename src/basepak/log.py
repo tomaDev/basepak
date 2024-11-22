@@ -4,8 +4,9 @@ import json
 import logging
 import re
 import shutil
+from collections.abc import Mapping
 from functools import lru_cache, partial
-from typing import Optional, Mapping, Callable
+from typing import Callable, Optional
 
 import rich
 from rich.logging import RichHandler
@@ -28,10 +29,10 @@ RICH_THEME_KWARGS_DEFAULT = {
 
 rich.reconfigure(
     width=shutil.get_terminal_size(fallback=(140, 24)).columns,  # fallback for running in cron,
-    theme=rich.theme.Theme(RICH_THEME_KWARGS_DEFAULT),  # noqa
+    theme=rich.theme.Theme(RICH_THEME_KWARGS_DEFAULT),
 )
 
-Table = partial(rich.table.Table, header_style='bold magenta')  # noqa
+Table = partial(rich.table.Table, header_style='bold magenta')
 
 
 def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:
@@ -137,7 +138,7 @@ def name_to_handler(name: str) -> logging.StreamHandler:
         raise ValueError(f'Unsupported logger name: {name}. Supported names are: {SUPPORTED_LOGGERS.keys()}')
 
 
-@lru_cache()
+@lru_cache
 def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
     """Retrieve or create a globally scoped logger
 
@@ -179,7 +180,9 @@ def log_as(syntax: str, data: Optional[Mapping | str] = None, printer: Optional[
         return
     if syntax == 'yaml':
         import io
+
         import ruyaml as yaml
+
         from .strings import iter_to_case
         if isinstance(data, Mapping):
             data = iter_to_case(data, target_case='camelBackCase')
