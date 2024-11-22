@@ -10,11 +10,6 @@ Documentation = 'https://github.com/tomaDev/basepak#readme'
 Issues = 'https://github.com/tomaDev/basepak/issues'
 Source = 'https://github.com/tomaDev/basepak'
 
-[dependency-groups]
-dev = [
-    "pytest>=8.3.3",
-]
-
 [tool.hatch.version]
 path = 'src/basepak/VERSION'
 pattern = '(?P<version>.*)'
@@ -59,14 +54,28 @@ dependencies = [
         'igz-mgmt',
 ]
 
+[tool.hatch.envs.hatch-test]
+dependencies = [
+    "pytest>=8.3.3",
+    "coverage",
+    "pytest-cov",
+]
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
 [tool.coverage.run]
-source_pkgs = ['basepak', 'tests']
 branch = true
 parallel = true
+omit = [
+    'tests/*',
+    'src/basepak/exceptions.py',
+    'src/basepak/platform_api.py',
+    'src/basepak/k8s_utils.py',
+]
 
 [tool.coverage.paths]
 basepak = ['src/basepak', '*/basepak/src/basepak']
-tests = ['tests', '*/basepak/tests']
 
 [tool.coverage.report]
 exclude_lines = [
