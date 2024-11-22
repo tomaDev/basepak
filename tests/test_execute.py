@@ -1,8 +1,10 @@
-import pytest
-import subprocess
 import logging
+import subprocess
 from unittest.mock import MagicMock, patch
-from basepak.execute import subprocess_stream, Executable
+
+import pytest
+from basepak.execute import Executable, subprocess_stream
+
 
 @pytest.fixture
 def mock_logger():

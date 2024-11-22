@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
+
 from basepak.configer import generate
 from ruyaml import YAML
-import os
 
 yaml = YAML(typ='safe', pure=True)
 

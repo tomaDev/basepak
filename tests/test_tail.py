@@ -4,7 +4,6 @@ import tempfile
 from unittest.mock import MagicMock
 
 import pytest
-
 from basepak.tail import tail, validate_pattern
 
 

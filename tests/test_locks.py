@@ -1,11 +1,11 @@
-import pytest
 import os
-import time
-import threading
-import click
 import shutil
+import threading
+import time
 
-from basepak.locks import group_lock, clean_locks
+import click
+import pytest
+from basepak.locks import clean_locks, group_lock
 
 
 @pytest.fixture
@@ -27,7 +27,6 @@ def test_lock_and_release(ctx):
         time.sleep(0.5)  # Simulate some work
         return 'success'
 
-    # Start test_func in a separate thread
     def run_func():
         test_func(ctx)
 

@@ -1,16 +1,18 @@
 # test_strings.py
 
-import pytest
 import hashlib
+
+import pytest
 from basepak.strings import (
-    iter_to_case,
     camel_to_upper_snake_case,
+    clean_strings,
+    iter_to_case,
     snake_to_camel_back_case,
+    split_on_first_letter,
     truncate,
     truncate_middle,
-    split_on_first_letter,
-    clean_strings,
 )
+
 
 # Helper function for expected truncate output
 def expected_truncate(string, max_len, hash_len=4, suffix=''):

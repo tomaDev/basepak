@@ -1,15 +1,17 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
+
+import pytest
 from basepak.time import (
     DEFAULT_FORMAT,
-    str_to_timedelta,
-    str_to_mmin,
-    str_to_seconds,
-    strptime,
     create_timestamp,
     sleep,
+    str_to_mmin,
+    str_to_seconds,
+    str_to_timedelta,
+    strptime,
 )
+
 
 @pytest.mark.parametrize('time_str, expected_timedelta', [
     ('1w', timedelta(weeks=1)),

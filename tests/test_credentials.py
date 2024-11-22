@@ -8,13 +8,11 @@ from basepak.credentials import Credentials
 dotenv_path = tempfile.mktemp()
 
 def test_credentials_singleton():
-    """Test that Credentials class implements the singleton pattern."""
     cred1 = Credentials()
     cred2 = Credentials()
     assert cred1 is cred2
 
 def test_set_with_spec():
-    """Test setting credentials using the 'spec' parameter."""
     Credentials._credentials = {}
     spec = {
         'USER1': {
@@ -28,7 +26,6 @@ def test_set_with_spec():
     assert creds['USER1']['PASSWORD'] == 'pass1'
 
 def test_set_with_auths():
-    """Test setting credentials using the 'auths' parameter."""
     Credentials._credentials = {}
     auths = {'USER2': 'user2:pass2'}
     Credentials.set(auths=auths, dotenv_path=dotenv_path)
@@ -37,7 +34,6 @@ def test_set_with_auths():
     assert creds['USER2']['PASSWORD'] == 'pass2'
 
 def test_set_with_invalid_auths():
-    """Test that invalid 'auths' format raises an exception."""
     Credentials._credentials = {}
     auths = {'USER_INVALID': 'invalid_format'}
     with pytest.raises(Exception):
@@ -45,7 +41,6 @@ def test_set_with_invalid_auths():
 
 @patch('basepak.credentials.load_from_dotenv')
 def test_set_with_dotenv(mock_load_from_dotenv):
-    """Test setting credentials by loading from a .env file."""
     Credentials._credentials = {}
     mock_load_from_dotenv.return_value = {'USER3': 'user3:pass3'}
     with patch.dict(os.environ, {'BASEPAK_DOTENV_PATH': '/path/to/.env'}):
@@ -55,7 +50,6 @@ def test_set_with_dotenv(mock_load_from_dotenv):
     assert creds['USER3']['PASSWORD'] == 'pass3'
 
 def test_get_with_user_mask():
-    """Test retrieving credentials for a specific user mask."""
     Credentials._credentials = {
         'USER1': {'USERNAME': 'user1', 'PASSWORD': 'pass1'},
         'USER2': {'USERNAME': 'user2', 'PASSWORD': 'pass2'},
@@ -66,7 +60,6 @@ def test_get_with_user_mask():
 
 @patch('basepak.execute.Executable')
 def test_set_from_k8s(mock_executable):
-    """Test setting credentials by fetching secrets from Kubernetes."""
     mock_run = mock_executable.return_value.run
     mock_run.return_value.stdout = '''
     {
@@ -88,14 +81,12 @@ def test_set_from_k8s(mock_executable):
     assert creds['USER4']['PASSWORD'] == 'pass4'
 
 def test_set_missing_username():
-    """Test that missing 'USERNAME' raises an exception."""
     Credentials._credentials = {}
     spec = {'USER_MISSING_USERNAME': {'PASSWORD': 'pass'}}
     with pytest.raises(Exception):
         Credentials.set(spec=spec)
 
 def test_set_missing_password_and_auth_key():
-    """Test that missing 'PASSWORD' and 'AUTH_KEY' raises an exception."""
     Credentials._credentials = {}
     spec = {'USER_MISSING_PASSWORD': {'USERNAME': 'user'}}
     with pytest.raises(Exception):

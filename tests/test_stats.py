@@ -108,5 +108,7 @@ def test_validate_os_thresholds_passing(thresholds):
 
 def test_validate_os_thresholds_exceeded(mock_logger):
     thresholds = {'MEMORY_PERCENT': 0.1, 'CPU_PERCENT': 0.5}
-    with pytest.raises(AssertionError):
-        stats.validate_os_thresholds(thresholds, mock_logger, mode='normal', iterations=3)
+    with patch('time.sleep') as mock_sleep:
+        with pytest.raises(AssertionError):
+            stats.validate_os_thresholds(thresholds, mock_logger, mode='normal', iterations=3)
+        mock_sleep.assert_called()

@@ -1,5 +1,5 @@
-import pytest
-from basepak.versioning import Version, IguazioVersion
+from basepak.versioning import IguazioVersion, Version
+
 
 # Tests for the Version class
 def test_version_init():

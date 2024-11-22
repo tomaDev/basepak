@@ -1,9 +1,9 @@
 # test_tasks.py
 
-import pytest
 import logging
 from unittest.mock import MagicMock
 
+import pytest
 from basepak import platform_api
 from basepak.tasks import Plan, Task
 

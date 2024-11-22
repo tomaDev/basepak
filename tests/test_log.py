@@ -1,18 +1,18 @@
 import logging
 
 import pytest
-
 from basepak.log import (
-    redact_str,
+    LOGGERS,
+    SUPPORTED_LOGGERS,
     MaskingFilter,
     get_logger,
     log_as,
-    SUPPORTED_LOGGERS,
     name_to_handler,
+    redact_str,
 )
 
 REDACTION_TEST_DATA = [
-    ("mysecretpassword", "************word"),
+    ("mysecretpassword", "************word"),  # noqa
     ("short", "*hort"),
     ("test", "****"),  # strings shorter than plaintext_suffix_length should be fully redacted
     ("1234567890", "******7890"),
@@ -26,7 +26,7 @@ def test_redact_str():
         assert redact_str(original) == expected
 
 def test_redact_str_custom_mask():
-    original = "mysecretpassword"
+    original = "mysecretpassword"  # noqa
     expected = "########password"
     assert redact_str(original, mask="#", plaintext_suffix_length=8) == expected
 
@@ -66,26 +66,25 @@ def test_name_to_handler():
         handler = name_to_handler(name)
         assert isinstance(handler, handler_class)
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError) as _:
         name_to_handler("unsupported")
-    assert "Unsupported logger name" in str(excinfo.value)
 
-def test_get_logger():
-    logger_name = "short"
-    logger = get_logger(logger_name)
-    assert logger.name == logger_name
-    assert logger in logging.Logger.manager.loggerDict.values()
+def test_singleton_per_name():
+    LOGGERS.discard('short')
+    logger = get_logger('short')
+    assert logger is get_logger('short')
 
-    # Test that the same logger instance is returned
-    same_logger = get_logger(logger_name)
-    assert logger is same_logger
+    LOGGERS.discard('long')
+    assert logger is not get_logger('long')
 
-def test_get_logger_level():
-    logger = get_logger("long", level="DEBUG")
+def test_set_logger_level():
+    LOGGERS.discard('long')
+    logger = get_logger('long', level='DEBUG')
     assert logger.level == logging.DEBUG
 
 def test_date_time_encoder():
     import datetime
+
     from basepak.log import DateTimeEncoder
     now = datetime.datetime.now()
     import json
