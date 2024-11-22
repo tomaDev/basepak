@@ -2,7 +2,7 @@ import logging
 from typing import AnyStr
 
 
-def print_tar_top_level_members(tar_path: AnyStr):
+def print_tar_top_level_members(tar_path: AnyStr, logger: logging.Logger) -> None:
     """Print top level members of a tar file with their sizes in human-readable format
     :param tar_path: path to tar file"""
     import tarfile
@@ -11,10 +11,11 @@ def print_tar_top_level_members(tar_path: AnyStr):
             if member.name.count('/') != 1:
                 continue
             if member.size == 0:
-                print('dir', member.name.partition('/')[2])
+                logger.info('dir', member.name.partition('/')[2])
             else:
                 from .units import Unit
-                print(Unit(f'{member.size} B'), member.name.partition('/')[2])
+                member_size = Unit(f'{member.size} B')
+                logger.info(f'{member_size} {member.name.partition("/")[2]}')
 
 
 def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
@@ -24,8 +25,6 @@ def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
     :param logger: logger instance
     :return: path to extracted dir
     """
-    import click
-    import tarfile
     import os
     path = os.path.realpath(os.path.expanduser(path))
 
@@ -38,6 +37,8 @@ def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
     if os.path.isdir(assumed_dir):
         logger.info(f'Using assumed {path} as source')
         return str(assumed_dir)
+
+    import tarfile
     try:
         tarfile.is_tarfile(path)
         if mode == 'dry-run':
@@ -49,10 +50,12 @@ def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
             tar.extractall(path=os.path.dirname(path))  # nosec [B202:tarfile_unsafe_members]
         return str(assumed_dir)
     except FileNotFoundError:
+        import click
         raise click.MissingParameter(param_type='source', message=f'FileNotFoundError: {path}')
     except (tarfile.ExtractError, tarfile.ReadError) as e:
         raise e
     except Exception as e:
+        import click
         raise click.ClickException(f'Error extracting {path}: {e}')
 
 

@@ -25,13 +25,21 @@ def str_to_timedelta(time_str: str) -> timedelta:
     """Convert a string to a timedelta object
     :param time_str: string representation of time
     :return: timedelta object
+    :raises ValueError: if parsing time_str fails
     """
+    if not isinstance(time_str, str):
+        raise TypeError(f'time_str - expected str, got {type(time_str)}')
+    time_str = time_str.lower()
+    if time_str in ('', '0'):
+        return timedelta()
     regex = re.compile(_make_timedelta_pattern(SUPPORTED_TIME_NOTATION))
     parts = regex.match(time_str)
     if not parts:
-        raise 'regex parsing error. Was passed match object a string?'
+        raise ValueError(f'Parsing error for {time_str=}')
     parts = parts.groupdict()
     time_params = {name: int(param) for name, param in parts.items() if param}
+    if not time_params:
+        raise ValueError(f'No valid time units found in {time_str=}')
     return timedelta(**time_params)
 
 

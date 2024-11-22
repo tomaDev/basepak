@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import inspect
-import os
 from typing import Optional
 from pathlib import Path
-import ruyaml as yaml
 
 
 def generate(config: dict, destination_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
@@ -16,6 +13,9 @@ def generate(config: dict, destination_folder: Optional[str | Path] = None, file
     :param filename: The name of the yaml file to write to
     :return: The path to the generated template file
     """
+    import inspect
+    import os
+    import ruyaml as yaml
     frame = inspect.stack()[1]
     module = inspect.getmodule(frame[0])
     slash = '\\' if os.name == 'nt' else '/'

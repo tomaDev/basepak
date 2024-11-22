@@ -16,7 +16,7 @@ SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'ac
 SECRET_KEYWORD_PATTERNS = ['password && echo ', "[\"']PASSWORD[\"']:[ ]?[\"']", 'PASSWORD=', 'password: ']
 
 EXPRESSIONS_TO_MASK = [
-    rf'(--{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
+    rf'((?:--)?{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
 ] + [
     rf'({keyword})[\S]+' for keyword in SECRET_KEYWORD_PATTERNS
 ]

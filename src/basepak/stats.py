@@ -117,18 +117,19 @@ class Tracker:
         return not cls.is_failed(task)
 
 
-def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str) -> None:
+def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str, iterations: Optional[int] = 60) -> None:
     """Validate OS thresholds
     :param thresholds: the thresholds to validate
     :param logger: logger instance
     :param mode: execution mode
+    :param iterations: number of 1s interval iterations to recheck if threshold is exceeded
     :raises AssertionError: if threshold is exceeded
     """
     if not thresholds:
         logger.warning('No thresholds provided - skipping')
         return
-    _await_stat(thresholds.get('MEMORY_PERCENT'), stat=_get_virtual_memory, name='memory', logger=logger, mode=mode)
-    _await_stat(thresholds.get('CPU_PERCENT'), stat=_get_load_avg, name='load avg', logger=logger, mode=mode)
+    _await_stat(thresholds.get('MEMORY_PERCENT'), iterations=iterations, stat=_get_virtual_memory, name='memory', logger=logger, mode=mode)
+    _await_stat(thresholds.get('CPU_PERCENT'), iterations=iterations, stat=_get_load_avg, name='load avg', logger=logger, mode=mode)
 
 
 def _await_stat(threshold: Optional[float] = None, iterations: Optional[int] = 60, stat: Callable = None,

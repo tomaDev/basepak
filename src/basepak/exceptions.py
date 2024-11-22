@@ -6,7 +6,6 @@ from functools import wraps
 from ssl import SSLCertVerificationError
 from typing import Optional
 
-import click
 import requests
 from igz_mgmt import exceptions as igz_mgmt_exceptions
 from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_exponential
@@ -108,6 +107,7 @@ def retry_strategy_default(func):
             if e.response.status_code in (401, 403, 405):
                 sys.exit(1)
             else:
+                import click
                 raise click.Abort(e)
         except subprocess.CalledProcessError as e:
             logger.error(e.stderr)

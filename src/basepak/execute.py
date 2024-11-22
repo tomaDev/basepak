@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import contextlib
-import json
 import logging
-import shlex
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict
-
-from . import log
 
 
 def subprocess_stream(
@@ -29,11 +23,17 @@ def subprocess_stream(
     if logger_name and logger and logger_name != logger.name:
         # noinspection PyUnresolvedReferences
         raise ValueError(f'Logger name mismatch: {logger_name} != {logger.name}')
+
+    from . import log
     logger = logger or log.get_logger(name=logger_name)
+
     stdout = open(output_file, 'w') if output_file else subprocess.PIPE
     stderr = open(error_file, 'w') if error_file else subprocess.PIPE
 
     stderr_output = []
+
+    import contextlib
+    import shlex
     with stdout if output_file else contextlib.nullcontext(), stderr if error_file else contextlib.nullcontext():
         out = subprocess.Popen(shlex.split(cmd), stdout=stdout, stderr=stderr, *args, **kwargs)
         if stdout == subprocess.PIPE:
@@ -73,6 +73,7 @@ class Executable:
         """
         if name == '':
             raise ValueError('Empty string is not a valid name! Use None to assert args[0] of the command base')
+        import shutil
         if not shutil.which(name or self._cmd_base.split()[0]):
             raise NameError(f'Command "{name}" not found or has no executable permissions')
 
@@ -82,6 +83,7 @@ class Executable:
 
     def with_(self, *args: str, **kwargs: Dict[str, str]) -> str:
         """Return current command with provided args and kwargs appended at the end"""
+        import json
         ret = self._args + ' '.join(args)
         kwargs = {**self.run_kwargs, **kwargs}
         return ret + json.dumps(kwargs) if kwargs else ret

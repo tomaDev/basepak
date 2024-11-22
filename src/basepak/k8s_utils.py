@@ -13,8 +13,6 @@ import functools
 import json
 import logging
 import os
-import subprocess
-from datetime import datetime
 from pathlib import Path
 from typing import Set, Iterable, Dict, Optional
 
@@ -343,6 +341,8 @@ def await_k8s_job_completion(spec: dict) -> bool:
         if 'gibby' in name:  # remove when gibby errors on 'Task failed and retry limit has been reached' and not hang
             retry_count = _check_gibby_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
         status = json.loads(kubectl_run(job_status_cmd).stdout)
+
+        from datetime import datetime
         now = datetime.now()
         if now.minute < 1 and now.second < wait_interval % 60 + 1:  # hourly liveness
             kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
@@ -380,6 +380,7 @@ def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl:
     # kubectl logs --pod-running-timeout=5m should wait for at least one pod running, but it doesn't for some reason
     # added retry as a workaround
 
+    import subprocess
     logs_cmd = f'logs --selector=job-name={job_name} --since=1m'
     try:
         logs = kubectl.run(logs_cmd, show_cmd=False)

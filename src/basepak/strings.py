@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Iterable, Mapping
+import re
 
 
 def iter_to_case(input_: Iterable, target_case: str = 'UPPER_SNAKE_CASE',
@@ -46,12 +47,11 @@ def camel_to_upper_snake_case(value: str) -> str:
     :param value: string to convert
     :return: converted string
     """
-    new_key = ''
-    for i, letter in enumerate(value):
-        if i > 0 and letter.isupper() and not value[i - 1].isupper():
-            new_key += '_'
-        new_key += letter.upper()
-    return new_key
+    # Insert underscore between lowercase and uppercase letters
+    s1 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', value)
+    # Insert underscore between sequences of uppercase letters and the following lowercase letters
+    s2 = re.sub('([A-Z]+)([A-Z][a-z0-9])', r'\1_\2', s1)
+    return s2.upper()
 
 
 def snake_to_camel_back_case(value: str) -> str:
