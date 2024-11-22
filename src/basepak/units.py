@@ -169,19 +169,22 @@ class Unit:
 class Range(click.ParamType):
     name = 'Range'
     start_default = 1
-    stop_default = 1000
 
     def convert(self, value: str, param: click.Parameter, ctx: click.Context) -> range:
-        if ':' not in value:
+        if ':' not in value and '-' not in value:
             start = self._parse_to_int(value, param, ctx, self.start_default)
             return range(start, start + 1)
-        split_value = value.split(':')
+        split_value = value.split(':') if ':' in value else value.split('-')
+
         if len(split_value) > 2:
             self.fail(f'{value} is not a valid range', param, ctx)
+
+        import sys
+        max_size = sys.maxsize
         if not split_value:
-            return range(self.start_default, self.stop_default)
+            return range(self.start_default, max_size)
         start = self._parse_to_int(split_value[0], param, ctx, self.start_default)
-        stop = self._parse_to_int(split_value[1], param, ctx, self.stop_default)
+        stop = self._parse_to_int(split_value[1], param, ctx, max_size)
         return range(start, stop)
 
     def _parse_to_int(self, value: str, param: click.Parameter, ctx: click.Context, default: int) -> int:

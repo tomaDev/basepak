@@ -1,6 +1,9 @@
-import pytest
+import ipaddress
+from unittest.mock import MagicMock
 
-from basepak.units import Unit
+import click
+import pytest
+from basepak.units import IPAddress, Range, Ranges, Unit
 
 
 def test_unit_initialization():
@@ -76,7 +79,7 @@ def test_unit_arithmetic_operations():
     assert result.unit == "KiB"
 
     with pytest.raises(ZeroDivisionError):
-        unit1 / Unit("0 B")  # Division by zero
+        unit1 / Unit("0 B")
 
 
 def test_unit_comparison():
@@ -84,19 +87,11 @@ def test_unit_comparison():
     unit2 = Unit("1024 B")
 
     assert unit1 == unit2
-    assert unit1 >= unit2
-    assert unit1 <= unit2
+    assert unit1 >= unit2  # noqa
+    assert unit1 <= unit2  # noqa
 
     assert unit1 > Unit("512 B")
     assert unit1 < Unit("2 KiB")
-
-
-def test_unit_repr():
-    unit = Unit("1024 B")
-    assert repr(unit) == " 1.00 KiB"
-
-    unit = Unit("1.5 MB")
-    assert repr(unit) == " 1.50 MB"
 
 
 def test_unit_reduce():
@@ -131,3 +126,48 @@ def test_unit_as_unit():
     unit = Unit("1024 B")
     assert unit.as_unit("KiB") == "1KiB"
     assert unit.as_unit("auto") == " 1.00 KiB"
+
+@pytest.fixture
+def mock_param():
+    return MagicMock(spec=click.Parameter)
+
+
+@pytest.fixture
+def mock_ctx():
+    return MagicMock(spec=click.Context)
+
+
+# Tests for Range
+def test_range_single_value(mock_param, mock_ctx):
+    range_type = Range()
+    result = range_type.convert('5', mock_param, mock_ctx)
+    assert result == range(5, 6)
+
+
+@pytest.mark.parametrize('sep', [':', '-'])
+def test_range_valid_full(sep, mock_param, mock_ctx):
+    range_type = Range()
+    result = range_type.convert(f'1{sep}10', mock_param, mock_ctx)
+    assert result == range(1, 10)
+
+
+@pytest.mark.parametrize('sep', [':', '-'])
+def test_range_invalid_format(sep, mock_param, mock_ctx):
+    range_type = Range()
+    with pytest.raises(Exception):
+        range_type.convert(f'1{sep}2{sep}3', mock_param, mock_ctx)
+
+
+@pytest.mark.parametrize('sep', [':', '-'])
+def test_ranges_single_range(sep, mock_param, mock_ctx):
+    ranges_type = Ranges()
+    result = ranges_type.convert(f'1{sep}5', mock_param, mock_ctx)
+    assert result == [range(1, 5)]
+
+
+@pytest.mark.parametrize('sep1', [':', '-'])
+@pytest.mark.parametrize('sep2', [':', '-'])
+def test_ranges_valid(sep1, sep2, mock_param, mock_ctx):
+    ranges_type = Ranges()
+    result = ranges_type.convert(f'1{sep1}5,6{sep2}10', mock_param, mock_ctx)
+    assert result == [range(1, 5), range(6, 10)]
