@@ -53,6 +53,12 @@ dependencies = [
         'python-dotenv',
         'igz-mgmt',
 ]
+[tool.hatch.envs.default]
+path = ".venv"
+
+[tool.hatch.envs.default.scripts]
+lock = 'uv lock'
+upgrade = 'uv sync'
 
 [tool.hatch.envs.hatch-test]
 dependencies = [
@@ -60,6 +66,7 @@ dependencies = [
     "coverage",
     "pytest-cov",
 ]
+install_project = true
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
