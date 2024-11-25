@@ -9,7 +9,6 @@ env:
   PACKAGE_NAME: basepak
   OWNER: tomaDev
   VERSION_FILE: src/basepak/VERSION
-  ENVIRONMENT: production
 
 jobs:
   check_pypi:
