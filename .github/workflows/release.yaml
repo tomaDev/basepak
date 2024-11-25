@@ -6,9 +6,10 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+"
 
 env:
-  PACKAGE_NAME: "basepak"
-  OWNER: "tomaDev"
-  VERSION_FILE: "src/basepak/VERSION"
+  PACKAGE_NAME: basepak
+  OWNER: tomaDev
+  VERSION_FILE: src/basepak/VERSION
+  ENVIRONMENT: production
 
 jobs:
   check_pypi:
