@@ -27,7 +27,7 @@ jobs:
 
       - name: Compare versions and exit if not newer
         run: |
-          NEW_VERSION=${{ github.event.ref }}
+          NEW_VERSION=$(cat ${{ env.VERSION_FILE }})
           LATEST_VERSION=$latest_previous_version
           echo "New release version - $NEW_VERSION"
           echo "latest PyPI version - $LATEST_VERSION"
@@ -94,7 +94,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=v"${{ needs.details.outputs.new_version }}"
+          VERSION=v"$(cat ${{ env.VERSION_FILE }})"
           gh release create $VERSION dist/* --title $VERSION --generate-notes
 
 #  pypi_publish:
