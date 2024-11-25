@@ -26,7 +26,7 @@ def group_lock(func: Callable) -> Callable:
         if ctx is None:
             logger.error('ctx argument must be provided')
             raise click.Abort()
-        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
+        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
         try:
             os.makedirs(lock_file_dir, exist_ok=True)
         except PermissionError as e:
@@ -61,7 +61,7 @@ def clean_locks(ctx: click.Context) -> int:
     import os
     from glob import glob
 
-    lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')
+    lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
     paths = glob(os.path.join(lock_file_dir, '*.lock'))
     if not paths:
         click.echo('No lock files found')

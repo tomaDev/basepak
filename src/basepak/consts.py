@@ -91,7 +91,7 @@ class FieldSelectors(metaclass=ConstMeta):
               'metadata.name!=monitoring-etcd-ssl'
 
 
-SECRET_NAME_BASE = 'platform-users'
+SECRET_NAME_BASE = 'platform-users'  # nosec B105: hardcoded secret name
 IS_PURGEABLE_KEY = 'purgeable'
 DEFAULT_LABELS = {'basepak/version': package_version}
 RELOAD_KUBECONFIG_PAYLOAD = {

@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - "stable"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
 env:
   PACKAGE_NAME: "basepak"
@@ -11,27 +11,7 @@ env:
   VERSION_FILE: "src/basepak/VERSION"
 
 jobs:
-  details:
-    runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.release.outputs.new_version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Extract project version
-        id: release
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            NEW_VERSION="$(cat ${{ env.VERSION_FILE }})"
-            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-            echo "New Version is $NEW_VERSION"
-          else
-            echo "No tag found"
-            exit 1
-          fi
-  
   check_pypi:
-    needs: details
     runs-on: ubuntu-latest
     steps:
       - name: Fetch information from PyPI
@@ -47,7 +27,7 @@ jobs:
 
       - name: Compare versions and exit if not newer
         run: |
-          NEW_VERSION=${{ needs.details.outputs.new_version }}
+          NEW_VERSION=${{ github.event.ref }}
           LATEST_VERSION=$latest_previous_version
           echo "New release version - $NEW_VERSION"
           echo "latest PyPI version - $LATEST_VERSION"
@@ -62,7 +42,7 @@ jobs:
           fi
 
   setup_and_build:
-    needs: [details, check_pypi]
+    needs: [check_pypi]
     name: python
     runs-on: ubuntu-latest
     steps:
@@ -93,7 +73,7 @@ jobs:
 
   github_release:
     name: Create GitHub Release
-    needs: [setup_and_build, details]
+    needs: [setup_and_build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
