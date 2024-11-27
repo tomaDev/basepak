@@ -15,7 +15,7 @@ from . import strings
 @dataclass
 class Unit:
     """Small hand-rolled size unit class"""
-    # The Pint library is a robust framework for units - at 1.5MiB with a few extra deps, it's not needed for now"""
+    # The Pint library is a robust framework for units - at 1.5MiB with a few extra deps, it's not needed for now
     _input_string: str = field(repr=False)
     value: float = field(init=False, compare=True)
     unit: str = field(init=False)
@@ -60,7 +60,7 @@ class Unit:
 
     def convert_to(self, unit: str) -> float:
         """Convert the instance value to the given unit
-        :param unit: unit to convert to
+        :param unit: the unit to convert to
         :return: converted value
         """
         if unit not in self.UNIT_FACTORS:
