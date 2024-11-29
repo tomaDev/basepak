@@ -11,10 +11,9 @@ Issues = 'https://github.com/tomaDev/basepak/issues'
 Source = 'https://github.com/tomaDev/basepak'
 
 [tool.hatch.version]
-path = 'src/basepak/VERSION'
-pattern = '(?P<version>.*)'
-validate-bump = true
 scheme = 'semver'
+path = 'src/basepak/__init__.py'
+validate-bump = true
 
 
 [project]

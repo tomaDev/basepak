@@ -1,5 +1,5 @@
 import os
-
+from basepak import __version__ as package_version
 
 class ConstMeta(type):
     """Metaclass for creating immutable classes
@@ -21,10 +21,6 @@ class ConstMeta(type):
         if key in cls.__dict__:
             raise AttributeError(f"Class {cls.__name__} immutable! Cannot delete constant attribute '{key}'")
         super().__delattr__(cls, key)
-
-
-with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'VERSION')) as file:
-    package_version = next((line.strip() for line in file if line.strip()), '0.0.0')
 
 ##############################################################################################################
 # ### Inputs ###
