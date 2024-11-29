@@ -15,7 +15,7 @@ from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_
 
 from . import (
     consts,
-    exceptions,  # missing
+    exceptions, # noqa IDE mixup
     log,
 )
 from .credentials import Credentials
