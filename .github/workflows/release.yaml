@@ -8,48 +8,53 @@ on:
 env:
   PACKAGE_NAME: basepak
   OWNER: tomaDev
-  VERSION_FILE: src/basepak/VERSION
 
 jobs:
   check_pypi:
     runs-on: ubuntu-latest
+    outputs:
+      PYPI_VERSION: ${{ steps.get.outputs.PYPI_VERSION }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Fetch information from PyPI
+        id: get
         run: |
           response=$(curl -s https://pypi.org/pypi/${{ env.PACKAGE_NAME }}/json || echo "{}")
-          latest_previous_version=$(echo $response | grep -oP '"releases":\{"\K[^"]+' | sort -rV | head -n 1)
-          if [ -z "$latest_previous_version" ]; then
+          version=$(echo $response | grep -oP '"releases":\{"\K[^"]+' | sort -rV | head -n 1)
+          if [ -z "$version" ]; then
             echo "Package not found on PyPI."
-            latest_previous_version="0.0.0"
+            version="0.0.0"
           fi
-          echo "Latest version on PyPI: $latest_previous_version"
-          echo "latest_previous_version=$latest_previous_version" >> $GITHUB_ENV
-
-      - name: Compare versions and exit if not newer
-        run: |
-          NEW_VERSION=$(cat ${{ env.VERSION_FILE }})
-          LATEST_VERSION=$latest_previous_version
-          echo "New release version - $NEW_VERSION"
-          echo "latest PyPI version - $LATEST_VERSION"
-          if [ "$NEW_VERSION" == "$LATEST_VERSION" ]; then
-            echo "same version"
-            exit 1
-          elif [ "$(printf '%s\n' "$LATEST_VERSION" "$NEW_VERSION" | sort -rV | head -n 1)" != "$NEW_VERSION" ]; then
-            echo "The new version $NEW_VERSION is not greater than the latest version $LATEST_VERSION on PyPI."
-            exit 1
-          else
-            echo "The new version $NEW_VERSION is greater than the latest version $LATEST_VERSION on PyPI."
-          fi
+          echo "Latest version on PyPI: $version"
+          echo "PYPI_VERSION=$version" >> $GITHUB_OUTPUT
 
   setup_and_build:
     needs: [check_pypi]
-    name: python
+    name: project setup and build
     runs-on: ubuntu-latest
+    outputs:
+      NEW_VERSION: ${{ steps.get.outputs.NEW_VERSION }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Get the new project version
+        id: get
+        run: echo NEW_VERSION=$(grep -oP '__version__ = "\K[^"]+' src/basepak/__init__.py) >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions and exit if not newer
+        run: |
+          PYPI_VERSION=${{ needs.check_pypi.outputs.PYPI_VERSION }}
+          NEW_VERSION=${{ steps.get.outputs.NEW_VERSION }}
+          echo "New release version - $NEW_VERSION"
+          echo "latest PyPI version - $PYPI_VERSION"
+          if [ "$NEW_VERSION" == "$PYPI_VERSION" ]; then
+            echo "same version. No need to release"
+            exit 1
+          elif [ "$(printf '%s\n' "$PYPI_VERSION" "$NEW_VERSION" | sort -rV | head -n 1)" != "$NEW_VERSION" ]; then
+            echo "The new version $NEW_VERSION is not greater than the latest version $PYPI_VERSION on PyPI"
+            exit 1
+          else
+            echo "The new version $NEW_VERSION is greater than the latest version $PYPI_VERSION on PyPI"
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -97,7 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=v"$(cat ${{ env.VERSION_FILE }})"
+          VERSION=v${{ needs.setup_and_build.outputs.NEW_VERSION }}
           gh release create $VERSION dist/* --title $VERSION --generate-notes
 
   pypi_publish:
