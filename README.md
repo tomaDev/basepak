@@ -1,6 +1,7 @@
 # basepak
 
 [![PyPI - Version](https://img.shields.io/pypi/v/basepak.svg)](https://pypi.org/project/basepak)
+[![Security: Bandit](https://img.shields.io/badge/security-bandit-green.svg)](https://bandit.readthedocs.io/en/latest/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/basepak.svg)](https://pypi.org/project/basepak)
 
 -----
