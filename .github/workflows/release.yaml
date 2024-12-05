@@ -71,7 +71,7 @@ jobs:
         run: |
           PACKAGE_VERSION="$(python -c 'import src.basepak as v;print(v.__version__)')"
           TAG_VERSION="${{ steps.get.outputs.NEW_VERSION }}"
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSOIN" ]; then
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
               echo "Version mismatch: (package internal) $PACKAGE_VERSION != $TAG_VERSION (tag)"
               exit 1
           fi
