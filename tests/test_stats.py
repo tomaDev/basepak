@@ -95,6 +95,7 @@ def test_tracker_is_succeeded(tracker_instance):
 
     tracker_instance.upsert('task3', 'phase1', 'failed')
     assert tracker_instance.is_succeeded() is False  # Not all tasks succeeded
+    assert tracker_instance.is_succeeded('task1', 'task2') is True  # Only task3 failed, excluding it should return True
 
 
 @pytest.mark.parametrize('thresholds', [

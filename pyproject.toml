@@ -18,8 +18,7 @@ validate-bump = true
 
 [project]
 name = 'basepak'
-dynamic = ['version']
-description = ''
+dynamic = ['version', 'description']
 readme = 'README.md'
 requires-python = '>=3.9'
 authors = [
@@ -37,11 +36,6 @@ classifiers = [
     'Programming Language :: Python :: Implementation :: PyPy',
 ]
 dependencies = [
-        # urllib3 is only used here as a dependency of requests.
-        # restricting version due to end of support for OpenSSL 1.0 (github.com/urllib3/urllib3/issues/2168)
-        # should remove if we remove requests (in favor of httpx or such)
-        # should upgrade (or remove) when we drop support for centos7 (data nodes to OpenSSL >=1.1.1)
-        'urllib3==1.26.19',
         'requests',
         'click',
         'ruyaml',
@@ -57,7 +51,7 @@ path = ".venv"  # should match to uv default venv path
 
 [tool.hatch.envs.default.scripts]
 lock = 'uv lock'
-upgrade = 'uv sync'
+upgrade = 'uv sync --upgrade'
 release = 'VERSION="$(hatch version)"; git tag $VERSION && git push origin $VERSION'
 
 [tool.hatch.envs.hatch-test]
@@ -73,6 +67,17 @@ dependencies = [
     'bandit',
 ]
 install_project = true
+
+[tool.hatch.envs.types]
+dependencies = [
+    'mypy>=1.0.0',
+    'types-requests',
+    'types-click',
+    'types-paramiko',
+    'types-psutil',
+]
+[tool.hatch.envs.types.scripts]
+check = 'mypy --install-types --pretty --non-interactive {args:src/basepak tests}'
 
 [tool.bandit]
 skips = [

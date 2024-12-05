@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 import rich
 from rich.logging import RichHandler
+from rich import theme, table
 
 LOGGERS: set[str] = set()
 LOG_MASK = '********'
@@ -28,11 +29,11 @@ RICH_THEME_KWARGS_DEFAULT = {
 }
 
 rich.reconfigure(
-    width=shutil.get_terminal_size(fallback=(140, 24)).columns,  # fallback for running in cron,
-    theme=rich.theme.Theme(RICH_THEME_KWARGS_DEFAULT),
+    width=shutil.get_terminal_size(fallback=(140, 24)).columns,  # fallback for running in cron
+    theme=theme.Theme(RICH_THEME_KWARGS_DEFAULT),
 )
 
-Table = partial(rich.table.Table, header_style='bold magenta')
+Table = partial(table.Table, header_style='bold magenta')
 
 
 def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:

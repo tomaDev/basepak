@@ -89,19 +89,19 @@ class Tracker:
         return cls.task_summary(task).get('status', 'unknown') in cls.FAILURE_STATUSES
 
     @classmethod
-    def is_failed(cls, task: Optional[str] = None) -> bool:
+    def is_failed(cls, *tasks: Optional[str]) -> bool:
         """Check if a task or all tasks have failed
-        :param task: task name to check, if None - check all tasks
+        :param tasks: task names to check for summary status, if None - check all tasks
         :return: True if task failed, False otherwise
         """
-        if not task:
-            return any([cls.is_task_failed(x) for x in cls._tasks.keys()])
-        return cls.is_task_failed(task)
+        if not tasks:
+            tasks = cls._tasks.keys()
+        return any([cls.is_task_failed(x) for x in tasks])
 
     @classmethod
-    def failed_tasks(cls, *tasks: str) -> List[str]:
+    def failed_tasks(cls, *tasks: Optional[str]) -> List[str]:
         """Get a list of tasks that failed
-        :param tasks: list of task names to check for summary status, if None - check all tasks
+        :param tasks: task names to check for summary status. Defaults to all tasks
         :return: List of tasks that failed
         """
         if not tasks:
@@ -109,12 +109,12 @@ class Tracker:
         return [x for x in tasks if cls.is_task_failed(x)]
 
     @classmethod
-    def is_succeeded(cls, task: Optional[str] = None) -> bool:
+    def is_succeeded(cls, *tasks: Optional[str]) -> bool:
         """Check if a task or all tasks have succeeded
-        :param task: task name to check, if None - check all tasks
+        :param tasks: task names to check for summary status, if None - check all tasks
         :return: True if task succeeded, False otherwise
         """
-        return not cls.is_failed(task)
+        return not cls.is_failed(*tasks)
 
 
 def validate_os_thresholds(thresholds: dict[str, Optional[float]], logger: logging.Logger, mode: str, iterations: Optional[int] = 60) -> None:
@@ -160,4 +160,4 @@ def _get_load_avg() -> float:
 
 
 def _get_virtual_memory() -> float:
-    return psutil.virtual_memory()._asdict()['percent']  # w0212
+    return psutil.virtual_memory()._asdict()['percent']  # noqa w0212

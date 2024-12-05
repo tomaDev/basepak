@@ -36,8 +36,6 @@ jobs:
     steps:
       - name: Get the new project version
         id: get
-#        run: echo NEW_VERSION=$(grep -oP '__version__ = "\K[^"]+' src/basepak/__init__.py) >> "$GITHUB_OUTPUT"
-#        run: echo "NEW_VERSION=$(python -c 'import src.basepak as v;print(v.__version__)')" >> "$GITHUB_OUTPUT"
         run: echo "NEW_VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions and exit if not newer
@@ -61,7 +59,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          version: "0.5.4"
+          version: "0.5.5"
           enable-cache: true
 
       - name: Set up Python
@@ -69,6 +67,14 @@ jobs:
         with:
           python-version-file: "pyproject.toml"
 
+      - name: Validate package version matches tag version
+        run: |
+          PACKAGE_VERSION="$(python -c 'import src.basepak as v;print(v.__version__)')"
+          TAG_VERSION="${{ steps.get.outputs.NEW_VERSION }}"
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSOIN" ]; then
+              echo "Version mismatch: (package internal) $PACKAGE_VERSION != $TAG_VERSION (tag)"
+              exit 1
+          fi
       - name: Install the project
         run: uv sync --all-extras --frozen --no-editable
 
