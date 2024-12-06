@@ -25,6 +25,7 @@ DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
 
+COMMON_REMOTE_FS_TYPES = {'nfs', 'cifs', 'smb', 'ssh', 'fuse', 'afp', 'coda', 'gfs', 'lustre', 'gluster', 'ceph', 'dav'}
 
 def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run') -> None:
     """Runs kubectl command and saves output to file
@@ -488,8 +489,10 @@ def is_remote_sharing_disk_with_host(  # todo: create test
     :param spec:        task spec
     :param local_path:  local path
     :param remote_path: remote path
-    :return:            True if created marker file on the host path is found on the remote path
+    :return: True if created marker file on the host path is found on the remote path
     """
+    if is_path_local_best_effort(local_path):
+        return False
     logger_plain = log.get_logger('plain')
     marker_name = f'.do-remote-and-local-mount-same-disk-{os.urandom(4).hex()}'
     marker = Path(local_path, marker_name)
@@ -500,3 +503,40 @@ def is_remote_sharing_disk_with_host(  # todo: create test
     resp = kubectl.run(f'--selector=job-name={ls_job_name}', check=False)
     marker.unlink()
     return marker_name in resp.stdout.splitlines()
+
+
+def is_path_local_best_effort(path: str | Path) -> bool:
+    """Check if path is on a local or remote disk.
+    :param path: path
+    :return:     True if path is on a local disk. False if on remote or unable to recognize local partition"""
+    import psutil
+
+    path = str(Path(path).resolve())
+    partitions = psutil.disk_partitions(all=True)
+
+    # Sort by length in descending order. This ensures that the longest matching mountpoint is used
+    partitions.sort(key=lambda p: len(p.mountpoint), reverse=True)
+
+    matched_partition = None
+    for part in partitions:
+        mnt = part.mountpoint
+        if not mnt.endswith(os.sep):  # Ensure mountpoint has a trailing slash for consistent matching
+            mnt += os.sep
+
+        if path.startswith(mnt):
+            matched_partition = part
+            break
+    if matched_partition is None:
+        raise False
+
+    fs_type = matched_partition.fstype.lower()
+    if any([fs_type.startswith(x) for x in COMMON_REMOTE_FS_TYPES]):
+        return False
+
+    # On some systems, remote mounts may appear as something like //server/share for cifs.
+    # Check if device looks like a network path.
+    device = matched_partition.device.lower()
+    if device.startswith('//') or device.startswith('\\\\'):
+        return False
+
+    return True
