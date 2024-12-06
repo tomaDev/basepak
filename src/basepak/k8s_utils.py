@@ -477,3 +477,26 @@ def _get_running_pod_manifest(kubectl: Executable, tries: int, retries: int, msg
         logger.info(f'{retries=}')
         return _get_running_pod_manifest(kubectl, tries, retries, 'No running pods found', logger)
     return pod_manifest
+
+
+def is_remote_sharing_disk_with_host(  # todo: create test
+        spec: dict,
+        local_path: str,
+        remote_path: Optional[str] = None,
+) -> bool:
+    """Check if pod and host share the same disk
+    :param spec:        task spec
+    :param local_path:  local path
+    :param remote_path: remote path
+    :return:            True if created marker file on the host path is found on the remote path
+    """
+    logger_plain = log.get_logger('plain')
+    marker_name = f'.do-remote-and-local-mount-same-disk-{os.urandom(4).hex()}'
+    marker = Path(local_path, marker_name)
+    marker.touch()
+    # -1 for single column, -A for all files except ./..
+    ls_job_name = create_oneliner_job(spec, f'ls -1A {remote_path or local_path}', 'ls', await_completion=True)
+    kubectl = Executable('kubectl', 'kubectl logs --namespace', spec['NAMESPACE'], logger=logger_plain)
+    resp = kubectl.run(f'--selector=job-name={ls_job_name}', check=False)
+    marker.unlink()
+    return marker_name in resp.stdout.splitlines()
