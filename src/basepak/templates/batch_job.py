@@ -25,12 +25,14 @@ POD_SPEC_DEFAULT = {
 }
 
 
-def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
+def generate_template(
+        params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None
+) -> tuple[str, str]:
     """Generate a k8s Job template
     :param params: job parameters
     :param dump_folder: target folder
     :param filename: manifest filename
-    :return: job name
+    :return: job name, path to template
     """
     import os
 
@@ -92,5 +94,4 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
                             'claimName': params['PERSISTENT_VOLUME_CLAIM_NAME'],
                         }}]}}}}
 
-    configer.generate(template_batch_job, dump_folder, filename=filename)
-    return job_name
+    return job_name, configer.generate(template_batch_job, dump_folder, filename=filename)

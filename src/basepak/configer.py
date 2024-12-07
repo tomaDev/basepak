@@ -31,11 +31,17 @@ def generate(config: dict, destination_folder: Optional[str | Path] = None, file
         return dumper.org_represent_str(data)
     yaml.add_representer(str, multi_str, Dumper=yaml.SafeDumper)
 
-    write_to = f'{filename}.yaml'
     if destination_folder:
         os.makedirs(destination_folder, exist_ok=True)
-        write_to = f'{destination_folder}{slash}' + write_to
+        filename = f'{destination_folder}{slash}' + filename
+
+    suf = '.yaml'
+    if Path(filename + suf).exists():
+        basename = os.path.basename(filename)
+        names = {f for f in os.listdir(Path(filename).parent) if f.startswith(basename)}
+        suf = next(f'-{i}{suf}' for i in range(1, 1000) if basename + f'-{i}{suf}' not in names)
+    filename += suf
 
     yaml.SafeDumper.ignore_aliases = lambda *args: True
-    yaml.YAML(typ='safe', pure=True).dump(config, Path(write_to))
-    return write_to
+    yaml.YAML(typ='safe', pure=True).dump(config, Path(filename))
+    return filename

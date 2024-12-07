@@ -5,12 +5,14 @@ from pathlib import Path
 from typing import Optional
 
 
-def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None) -> str:
+def generate_template(
+        params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None
+) -> tuple[str, str]:
     """Generate a k8s DaemonSet template
     :param params: daemonset parameters
     :param dump_folder: target folder
     :param filename: manifest filename
-    :return: daemonset name
+    :return: daemonset name, path to template
     """
     from .. import configer, consts
     affinity = {}
@@ -67,5 +69,4 @@ def generate_template(params: Mapping, dump_folder: Optional[str | Path] = None,
                     **affinity,
                 }}}}
 
-    configer.generate(template_daemonset, dump_folder, filename=filename)
-    return template_daemonset['metadata']['name']
+    return template_daemonset['metadata']['name'], configer.generate(template_daemonset, dump_folder, filename=filename)

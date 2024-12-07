@@ -1,7 +1,11 @@
 from collections.abc import Mapping
 
 
-def generate_template(params: Mapping) -> str:
+def generate_template(params: Mapping) -> tuple[str, str]:
+    """Generate a k8s PersistentVolumeClaim template
+    :param params: PersistentVolumeClaim parameters
+    :return: PersistentVolumeClaim name, path to template
+    """
     from .. import configer, consts
     user_labels = params.get('METADATA', {}).get('labels', {}) | params.get('metadata', {}).get('labels', {})
     user_labels.setdefault(consts.IS_PURGEABLE_KEY, 'false')
@@ -24,5 +28,5 @@ def generate_template(params: Mapping) -> str:
         }
     }
 
-    configer.generate(template_persistent_volume_claim, params['GENERATED_MANIFESTS_FOLDER'])
-    return template_persistent_volume_claim['metadata']['name']
+    path_to_template = configer.generate(template_persistent_volume_claim, params['GENERATED_MANIFESTS_FOLDER'])
+    return template_persistent_volume_claim['metadata']['name'], path_to_template

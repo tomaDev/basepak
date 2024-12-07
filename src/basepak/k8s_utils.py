@@ -185,19 +185,15 @@ def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
         return
     kubectl = Executable('kubectl', 'kubectl --namespace', spec['NAMESPACE'])
 
-    if kubectl.run('get persistentvolumeclaim', spec['PERSISTENT_VOLUME_CLAIM_NAME'], check=False).stdout:
+    if kubectl.run('get persistentvolumeclaim --ignore-not-found', spec['PERSISTENT_VOLUME_CLAIM_NAME']).stdout:
         logger.debug(f'persistentvolumeclaim {spec["PERSISTENT_VOLUME_CLAIM_NAME"]} exists\nSkipping creation..')
     else:
         logger.info('Creating persistent volume claim')
         from .templates import persistent_volume_claim
-        persistent_volume_claim.generate_template(spec)
-        pvc_manifest_path = os.path.join(spec['GENERATED_MANIFESTS_FOLDER'], 'persistent-volume-claim.yaml')
-        kubectl.stream(f'apply --filename={pvc_manifest_path}')
+        _, path = persistent_volume_claim.generate_template(spec)
+        kubectl.stream('create --filename', path)
 
-    if pvc_single_desired_state := spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATE'):
-        pvc_desired_states = [pvc_single_desired_state]
-    else:
-        pvc_desired_states = spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATES') or ['Bound']
+    pvc_desired_states = [x.lower() for x in spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATES') or ['Bound']]
     pvc_name = spec['PERSISTENT_VOLUME_CLAIM_NAME']
 
     pvc_phase_jsonpath = 'jsonpath="{.status.phase}"'
@@ -205,19 +201,22 @@ def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
     # kubectl in k8s 1.21 errors out on --for=jsonpath="{.status.phase}"=Bound for pvc
     # So we run "get" first, to allow run for existing bound pvc
     # On k8s 1.21 it will error out otherwise, on later versions "wait" works
-    pvc_status = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name)
-    if pvc_status.stdout not in pvc_desired_states:
-        logger.warning(f'{pvc_status.stdout=}\nAwaiting state change. Desired options: {" ".join(pvc_desired_states)}')
+    pvc_status: str = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name).stdout
+    if pvc_status.lower() not in pvc_desired_states:
+        desired_states = ' '.join(pvc_desired_states)
+        logger.warning(f'{pvc_status=} {desired_states=}\nAwaiting state change')
 
         kubectl.set_args('wait persistentvolumeclaim', pvc_name, '--timeout=15s')
         for phase in pvc_desired_states + pvc_desired_states:  # checking every phase twice to avoid change drift
             out = kubectl.run(f'--for={pvc_phase_jsonpath}={phase}', show_cmd_level='warning')
             if not out.returncode:
-                logger.info(f'PVC {pvc_name} is in desired state: {phase}')
+                logger.info(f'persistentvolumeclaim {pvc_name} is in desired state: {phase}')
                 return
         kubectl.set_args('')
-        pvc_status = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name)
-        raise RuntimeError(f'PVC {pvc_name} state: {pvc_status}! Desired options: {" ".join(pvc_desired_states)}')
+        pvc_status = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name).stdout
+        error_msg = f'{pvc_name=} {pvc_status=} Desired states: {" ".join(pvc_desired_states)}'
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 
 def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
@@ -238,8 +237,8 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
             if spec['MODE'] != 'dry-run':
                 filename = 'journal-monitor'
                 from .templates import daemonset
-                daemonset.generate_template(spec, dump_folder=spec['CACHE_FOLDER'], filename=filename)
-                kubectl.run('create --filename', str(spec['CACHE_FOLDER'] / f'{filename}.yaml'))
+                _, path = daemonset.generate_template(spec, dump_folder=spec['CACHE_FOLDER'], filename=filename)
+                kubectl.run('create --filename', path)
                 resp = get_status.run()
         # TODO: add support for other errors
         else:
@@ -270,23 +269,33 @@ def create_oneliner_job(spec: dict, command: str | Executable, container_name: s
     :return: job name
     """
     from .templates import batch_job
+    from . import strings
+
     logger = log.get_logger(name=spec.get('LOGGER_NAME'), level=spec.get('LOG_LEVEL') or 'INFO')
     ensure_pvc(spec, logger)
     spec = spec.copy()
+    trunc = strings.truncate_middle
     spec.update({
-        'JOB_NAME': spec.get('JOB_NAME') or spec['INSTANCE_NAME'] + f'-{container_name}',
+        'JOB_NAME': trunc(spec.get('JOB_NAME') or spec['INSTANCE_NAME'] + f'-{container_name}'),
         'MODE': mode,
         'CONTAINER_NAME': container_name,
         'COMMAND': ['sh', '-c', f'{command}'],
     })
+    if mode == 'dry-run':
+        return spec['JOB_NAME']
+
+    kubectl = Executable('kubectl')
+    get_jobs_resp = kubectl.run('get jobs --ignore-not-found --output name --namespace', spec['NAMESPACE'])
+    job_names = {job.split('/')[-1] for job in get_jobs_resp.stdout.splitlines()}
+    if job_names and spec['JOB_NAME'] in job_names:
+        suf = next(i for i in range(1, 1000) if trunc(spec['JOB_NAME'] + f'-{i}') not in job_names)
+        spec['JOB_NAME'] = trunc(spec['JOB_NAME'] + f'-{suf}')
+
     manifests_folder = spec.setdefault('GENERATED_MANIFESTS_FOLDER', spec['CACHE_FOLDER'])
-    yaml_path = Path(manifests_folder).joinpath(f'{container_name}.yaml')
-    kubectl = Executable('kubectl', f'kubectl create --filename {yaml_path}')
-    if mode != 'dry-run':
-        spec['JOB_NAME'] = batch_job.generate_template(spec, manifests_folder, filename=container_name)
-        kubectl.stream()
-        if await_completion:
-            await_k8s_job_completion(spec)
+    spec['JOB_NAME'], path = batch_job.generate_template(spec, manifests_folder, filename=container_name)
+    kubectl.stream('create --filename', path)
+    if await_completion:
+        await_k8s_job_completion(spec)
     return spec['JOB_NAME']
 
 
