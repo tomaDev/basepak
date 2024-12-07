@@ -25,7 +25,6 @@ DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
 
-COMMON_REMOTE_FS_TYPES = {'nfs', 'cifs', 'smb', 'ssh', 'fuse', 'afp', 'coda', 'gfs', 'lustre', 'gluster', 'ceph', 'dav'}
 
 def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run') -> None:
     """Runs kubectl command and saves output to file
@@ -51,7 +50,7 @@ def print_namespace_events(namespace: str) -> None:
     """Print k8s events for a namespace, sorted by creation time, supports kubectl v1.21 and later
 
     :param namespace: k8s namespace"""
-    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, logger=log.get_logger(name='plain'))
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
     cmd = 'events'
     if get_kubectl_version() < Version('1.23'):
         cmd = 'get events --sort-by=.metadata.creationTimestamp'
@@ -68,7 +67,7 @@ def get_kubectl_version() -> Version:
     """Get kubectl version
 
     :return: kubectl version as a Version object"""
-    kubectl = Executable('kubectl', logger=log.get_logger(name='plain'))
+    kubectl = Executable('kubectl')
     result = kubectl.run('version --client --output json')
     kubectl_version = json.loads(result.stdout)['clientVersion']['gitVersion'][1:]  # strip 'v' prefix
     return Version(kubectl_version)
@@ -83,8 +82,7 @@ def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[
     :return: port number as a string
     """
     jsonpath = '{.spec.ports[?(@.name=="' + port_name + '")].port}'
-    logger = log.get_logger(name='plain')
-    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, 'get service', service_name, logger=logger)
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, 'get service', service_name)
     return kubectl.run(f"--output jsonpath='{jsonpath}'").stdout
 
 
@@ -160,7 +158,7 @@ def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[s
     :param file: file to get namespace from. If specified, namespace param is ignored
     :return: namespace
     """
-    kubectl = Executable('kubectl', logger=log.get_logger('plain'))
+    kubectl = Executable('kubectl')
     if file:
         namespace = get_namespace_from_file(file, logger, mode)
     namespace_exists = kubectl.run('get namespace', namespace, check=False)
@@ -182,12 +180,10 @@ def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
     :param spec: dict with PVC parameters
     :param logger: logger object
     """
-    logger_plain = log.get_logger('plain')
-
     ensure_namespace(spec['MODE'], logger, namespace=spec['NAMESPACE'])
     if spec['MODE'] == 'dry-run':
         return
-    kubectl = Executable('kubectl', 'kubectl --namespace', spec['NAMESPACE'], logger=logger_plain)
+    kubectl = Executable('kubectl', 'kubectl --namespace', spec['NAMESPACE'])
 
     if kubectl.run('get persistentvolumeclaim', spec['PERSISTENT_VOLUME_CLAIM_NAME'], check=False).stdout:
         logger.debug(f'persistentvolumeclaim {spec["PERSISTENT_VOLUME_CLAIM_NAME"]} exists\nSkipping creation..')
@@ -229,13 +225,12 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
     :param spec: dict with DaemonSet parameters
     :param logger: logger object
     """
-    logger_plain = log.get_logger('plain')
     namespace = spec['NAMESPACE']
     ensure_namespace(spec['MODE'], logger, namespace=namespace)
     ds = spec['DAEMONSET_NAME']
-    kubectl = Executable('kubectl', logger=logger_plain)
+    kubectl = Executable('kubectl')
     get_status = Executable('get_status', 'kubectl get daemonset', ds, '--output jsonpath={.status}',
-                            ' --namespace', namespace, logger=logger_plain)
+                            ' --namespace', namespace)
     resp = get_status.run(check=False)
     if resp.returncode:
         if resp.stderr.startswith(RESOURCE_NOT_FOUND):
@@ -255,7 +250,7 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
     retries = 3
     interval = 10
     while ds_status['desiredNumberScheduled'] != ds_status['numberReady'] and retries:
-        log.log_as('json', ds_status, printer=logger_plain.info)
+        log.log_as('json', ds_status)
         logger.info('Waiting for desiredNumberScheduled == numberReady')
         retries -= 1
         time.sleep(interval)
@@ -286,7 +281,7 @@ def create_oneliner_job(spec: dict, command: str | Executable, container_name: s
     })
     manifests_folder = spec.setdefault('GENERATED_MANIFESTS_FOLDER', spec['CACHE_FOLDER'])
     yaml_path = Path(manifests_folder).joinpath(f'{container_name}.yaml')
-    kubectl = Executable('kubectl', f'kubectl create --filename {yaml_path}', logger=log.get_logger('plain'))
+    kubectl = Executable('kubectl', f'kubectl create --filename {yaml_path}')
     if mode != 'dry-run':
         spec['JOB_NAME'] = batch_job.generate_template(spec, manifests_folder, filename=container_name)
         kubectl.stream()
@@ -310,7 +305,7 @@ def await_k8s_job_completion(spec: dict) -> bool:
     output_wide_on_debug = '--output wide' if spec.get('LOG_LEVEL') == 'DEBUG' else ''
     get_pods_cmd = f'get pods --selector=job-name={name} {output_wide_on_debug}'
 
-    kubectl = Executable('kubectl', f'kubectl --namespace {namespace}', logger=logger_plain)
+    kubectl = Executable('kubectl', f'kubectl --namespace {namespace}')
     kubectl_run = functools.partial(kubectl.run, show_cmd=False, check=False)
     job_timeout = spec['JOB_TIMEOUT']
     logger.info(f'Waiting for {name} to complete, {job_timeout=}')
@@ -340,8 +335,8 @@ def await_k8s_job_completion(spec: dict) -> bool:
             retry_not_ready_count -= 1
             status = json.loads(kubectl.run(job_status_cmd).stdout)
             kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
-        if 'gibby' in name:  # remove when gibby errors on 'Task failed and retry limit has been reached' and not hang
-            retry_count = _check_gibby_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
+        # if 'gibby' in name:  # remove when gibby errors on 'Task failed and retry limit has been reached' and not hang
+        #     retry_count = _check_gibby_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
         status = json.loads(kubectl_run(job_status_cmd).stdout)
 
         from datetime import datetime
@@ -428,8 +423,7 @@ def get_pod_name_and_job_image(selector: str, container: str, namespace: str, lo
         'JOB_IMAGE': job_image,
     }
     """
-    logger_plain = log.get_logger(name='plain', level=logger.level)
-    kubectl = Executable('kubectl', 'kubectl --namespace', namespace, logger=logger_plain)
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
     kubectl.set_args('--selector', selector, 'get pods --output json')
     kubectl.show()
     pod_manifest = _get_running_pod_manifest(kubectl, tries=retries, retries=retries, logger=logger)
@@ -488,39 +482,62 @@ def is_remote_sharing_disk_with_host(  # todo: create test
     """Check if pod and host share the same disk
     :param spec:        task spec
     :param local_path:  local path
-    :param remote_path: remote path
-    :return: True if created marker file on the host path is found on the remote path
+    :param remote_path: remote path to be checked from the pod mount. Defaults to local_path
+    :return: True if newly created file on the host path is found on the remote path
     """
-    if is_path_local_best_effort(local_path):
+    if is_path_local(local_path):
         return False
-    logger_plain = log.get_logger('plain')
-    marker_name = f'.do-remote-and-local-mount-same-disk-{os.urandom(4).hex()}'
+    marker_name = f'.{spec.get("NAME") or "default"}-check-is-remote-sharing-disk-with-host-{os.urandom(4).hex()}'
     marker = Path(local_path, marker_name)
     marker.touch()
     # -1 for single column, -A for all files except ./..
     ls_job_name = create_oneliner_job(spec, f'ls -1A {remote_path or local_path}', 'ls', await_completion=True)
-    kubectl = Executable('kubectl', 'kubectl logs --namespace', spec['NAMESPACE'], logger=logger_plain)
+    kubectl = Executable('kubectl', 'kubectl logs --namespace', spec['NAMESPACE'])
     resp = kubectl.run(f'--selector=job-name={ls_job_name}', check=False)
     marker.unlink()
     return marker_name in resp.stdout.splitlines()
 
 
-def is_path_local_best_effort(path: str | Path) -> bool:
+def is_path_local(path: str | Path) -> bool:
     """Check if path is on a local or remote disk.
     :param path: path
-    :return:     True if path is on a local disk. False if on remote or unable to recognize local partition"""
+    :return:     True if path exists and resolves to a recognizable partition on a local disk. False otherwise
+    """
+    path = Path(path).resolve()
+    if not path.exists():
+        return False
+    path = str(path)
+
+    df = Executable('df')
+    df_options = (
+        '--local',  # `df --local`  supported on most Linux distros, including Rocky
+        '-l',       # `df -l`       supported on MacOS
+    )
+    if df_option := next((x for x in df_options if df.run(x, check=False).returncode == 0), None):
+        return df.run(df_option, path, check=False).returncode == 0
+
+    return is_path_local_best_effort(path) # fallback to best effort without `df`
+
+
+def is_path_local_best_effort(path: str | Path) -> bool:
+    """Check if path is on a local or remote disk (without using `df`).
+    :param path: path
+    :return:     True if path exists and resolves to a recognizable partition on a local disk. False otherwise
+    """
+    path = Path(path).resolve()
+    path = str(path)
+
     import psutil
 
-    path = str(Path(path).resolve())
     partitions = psutil.disk_partitions(all=True)
 
-    # Sort by length in descending order. This ensures that the longest matching mountpoint is used
+    # Sort by length in descending order. This ensures that the longest matching mount-point is used
     partitions.sort(key=lambda p: len(p.mountpoint), reverse=True)
 
     matched_partition = None
     for part in partitions:
         mnt = part.mountpoint
-        if not mnt.endswith(os.sep):  # Ensure mountpoint has a trailing slash for consistent matching
+        if not mnt.endswith(os.sep):  # Ensure mount-point has a trailing slash for consistent matching
             mnt += os.sep
 
         if path.startswith(mnt):
@@ -529,8 +546,9 @@ def is_path_local_best_effort(path: str | Path) -> bool:
     if matched_partition is None:
         raise False
 
+    remote_fs_types = {'nfs', 'cifs', 'smb', 'ssh', 'fuse', 'afp', 'coda', 'gfs', 'lustre', 'gluster', 'ceph', 'dav'}
     fs_type = matched_partition.fstype.lower()
-    if any([fs_type.startswith(x) for x in COMMON_REMOTE_FS_TYPES]):
+    if any([fs_type.startswith(x) for x in remote_fs_types]):
         return False
 
     # On some systems, remote mounts may appear as something like //server/share for cifs.

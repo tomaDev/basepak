@@ -36,13 +36,23 @@ def test_kubectl_dump():
           MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False, None),
     ]
 )
-def test_is_path_local(mock_partitions, test_path, expected, raises_error):
+def test_is_path_local_best_effort(mock_partitions, test_path, expected, raises_error):
     with patch('psutil.disk_partitions', return_value=mock_partitions):
-        real_path = os.path.realpath(test_path)
         if raises_error:
             with pytest.raises(raises_error):
-                k8s_utils.is_path_local_best_effort(real_path)
+                k8s_utils.is_path_local_best_effort(test_path)
         else:
-            assert k8s_utils.is_path_local_best_effort(real_path) is expected
+            assert k8s_utils.is_path_local_best_effort(test_path) is expected
+
+@pytest.mark.parametrize(
+    "test_path,expected", [
+        ('/', True),
+        ('/users', True),
+        ('/users/non-existent-user', False),
+        ('/nonexistent-mount', False),
+        ]
+)
+def test_is_path_local(test_path, expected):
+    assert k8s_utils.is_path_local(test_path) is expected
 
 # TODO: mock k8s api responses to test the rest of the code

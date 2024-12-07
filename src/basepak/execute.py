@@ -59,6 +59,9 @@ class Executable:
             self._cmd_base = ' '.join(cmd_base)
         self._cmd_base += ' '
         self._args = self._cmd_base
+        if not logger:
+            from . import log
+            logger = log.get_logger(name='plain')
         self.logger = logger
         self.run_kwargs = run_kwargs or dict()
 

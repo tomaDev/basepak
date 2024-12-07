@@ -75,18 +75,18 @@ def generate_script(
     """
     display_name = display_name or proc_name_best_effort(default=package_name)
     cli = cli or proc_name_best_effort(default=package_name)
-    logger_plain = log.get_logger(name='plain')
     if shell == 'auto':
         shell = proc_parent_name_best_effort(default='bash')
     complete_script = COMPLETE_SCRIPT_BASH.format(cli, cli.upper())
     profile_filename_default = '.bashrc'
     complete_filename_default = f'.{cli}_completion.sh'
     if shell.endswith('zsh'):
-        get_zsh_complete = Executable('zsh', f'_{cli.upper()}_COMPLETE=zsh_source {cli}', logger=logger_plain)
+        get_zsh_complete = Executable('zsh', f'_{cli.upper()}_COMPLETE=zsh_source {cli}')
         complete_script = get_zsh_complete.run().stdout
         profile_filename_default = '.zshrc'
         complete_filename_default = f'.{cli}_completion.zsh'
     if path is None:
+        logger_plain = log.get_logger(name='plain')
         logger_plain.info(complete_script)
         return 0
     script_path = get_full_path(path, complete_filename_default)
