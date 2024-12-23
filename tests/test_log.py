@@ -1,15 +1,19 @@
 import logging
 
 import pytest
+import tempfile
+import os
 
 from basepak.log import (
     LOGGERS,
     SUPPORTED_LOGGERS,
+    LOG_MASK,
     MaskingFilter,
     get_logger,
     log_as,
     name_to_handler,
     redact_str,
+    redact_file,
 )
 
 REDACTION_TEST_DATA = [
@@ -166,3 +170,110 @@ def test_get_logger_caching():
     logger1 = get_logger("plain")
     logger2 = get_logger("plain")
     assert logger1 is logger2
+
+
+@pytest.fixture
+def create_tempfile():
+    """
+    Pytest fixture that yields a path to a writable temporary file.
+    We remove the file after the test is done.
+    """
+    fd, file_path = tempfile.mkstemp(suffix=".txt")
+    os.close(fd)  # We only need the path; close the low-level file descriptor.
+    yield file_path
+    # Cleanup after the test
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+def test_redact_file_password(create_tempfile):
+    """
+    Test that 'password = super_secret' is replaced with 'password = ******'
+    using default keys (SECRET_KEYWORD_FLAGS).
+    """
+    file_path = create_tempfile
+
+    original_content = """some_key = foo
+password = super_secret
+not_sensitive = remain
+password plainvalue
+"""
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(original_content)
+
+    # Act: Redact the file
+    redact_file(file_path)  # uses default keys => includes "password"
+
+    # Assert
+    with open(file_path, "r", encoding="utf-8") as f:
+        result = f.read()
+
+    assert "super_secret" not in result
+    # Make sure other lines are unchanged
+    assert "some_key = foo" in result
+
+
+def test_redact_file_user_replacement(create_tempfile):
+    """Test that '--user root' or 'user = admin' style strings get redacted when 'user' is included in the keys"""
+    file_path = create_tempfile
+
+    original_content = """--user root
+username = not_the_same_key
+user = admin
+"""
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(original_content)
+
+    # Custom keys (you could also rely on SECRET_KEYWORD_FLAGS if it has 'user')
+    keys = ["user"]
+    redact_file(file_path, keys=keys)
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        result = f.read()
+
+    assert 'root' not in result
+    assert 'admin' not in result
+    # Should not have replaced 'username = not_the_same_key'
+    assert "username = not_the_same_key" in result
+
+
+def test_redact_file_custom_key_pattern(create_tempfile):
+    """
+    Demonstrate that a custom key not in the default flags can be redacted.
+    """
+    file_path = create_tempfile
+
+    original_content = """my_key = top-secret
+password = my_password
+"""
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(original_content)
+
+    # We only want to redact 'my_key'
+    keys = ["my_key"]
+    redact_file(file_path, keys=keys)
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        result = f.read()
+
+    # my_key value should be replaced
+    assert 'top-secret' not in result
+    # password line remains unchanged since we didn't provide 'password' in keys
+    assert "password = my_password" in result
+
+
+def test_redact_file_empty(create_tempfile):
+    """
+    Test that redacting an empty file does not fail and remains empty.
+    """
+    file_path = create_tempfile
+    # Create an empty file
+    open(file_path, "w").close()
+
+    # Try redacting
+    redact_file(file_path)
+
+    # Should still be empty
+    with open(file_path, "r", encoding="utf-8") as f:
+        result = f.read()
+
+    assert result == ""
