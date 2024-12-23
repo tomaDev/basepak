@@ -13,7 +13,7 @@ import functools
 import json
 import logging
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -115,6 +115,29 @@ def get_intersect_app_nodes(node_names: Iterable[str], logger: logging.Logger) -
         raise NameError(f'No matching nodes are ready\nGenerally Available nodes: {sorted(ready_nodes)}\n')
     return intersect_nodes
 
+def get_data_from_configmap(name: str, key: Optional[str] = None, namespace: Optional[str] = 'default-tenant') -> str:
+    """Get data from a k8s configmap by name and key
+
+    :param name: k8s configmap name
+    :param key: key to get data for. Defaults to getting all data
+    :param namespace: k8s namespace. Defaults to default-tenant
+    :return: data as a string
+    """
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
+    cmd = 'get configmap ' + name + ' --output jsonpath={{.data' + f'.{key}' if key else '' + '}'
+    return kubectl.run(cmd).stdout
+
+def get_data_from_secret(name: str, key: Optional[str] = None, namespace: Optional[str] = 'default-tenant') -> str:
+    """Get data from a k8s secret by name and key
+
+    :param name: k8s secret name
+    :param key: key to get data for. Defaults to getting all data
+    :param namespace: k8s namespace. Defaults to default-tenant
+    :return: data as a string
+    """
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
+    cmd = 'get secret ' + name + ' --output jsonpath={.data' + f'.{key}' if key else '' + '}'
+    return kubectl.run(cmd).stdout
 
 def get_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str) -> str:
     """Get namespace from file, create if not present in k8s
@@ -258,14 +281,16 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
         raise RuntimeError(f'{ds=} not ready after {retries=} with {interval=} seconds')
 
 
-def create_oneliner_job(spec: dict, command: str | Executable, container_name: str,
-                        await_completion: Optional[bool] = False, mode: Optional[str] = 'normal') -> str:
+def create_oneliner_job(
+        spec: dict, command: str | Executable, container_name: str, await_completion: Optional[bool] = False,
+        mode: Optional[str] = 'normal', redact: Optional[Sequence[str]] = None) -> str:
     """Create a k8s job that runs a single command
     :param spec: dict with job parameters
     :param command: command to run in the job
     :param container_name: container name
     :param await_completion: wait for job completion
     :param mode: execution mode
+    :param redact: list of strings to redact from the job manifest
     :return: job name
     """
     from .templates import batch_job
@@ -294,6 +319,8 @@ def create_oneliner_job(spec: dict, command: str | Executable, container_name: s
     manifests_folder = spec.setdefault('GENERATED_MANIFESTS_FOLDER', spec['CACHE_FOLDER'])
     spec['JOB_NAME'], path = batch_job.generate_template(spec, manifests_folder, filename=container_name)
     kubectl.stream('create --filename', path)
+    log.redact_file(path, redact)
+
     if await_completion:
         await_k8s_job_completion(spec)
     return spec['JOB_NAME']

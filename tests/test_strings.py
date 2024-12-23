@@ -91,7 +91,7 @@ def test_iter_to_case_camel_back_case():
             ]
         }
     }
-    assert iter_to_case(input_data, target_case='camelBackCase') == expected_output
+    assert iter_to_case(input_data, source_case='UPPER_SNAKE_CASE', target_case='camelBackCase') == expected_output
 
 def test_iter_to_case_skip_prefixes():
     input_data = {

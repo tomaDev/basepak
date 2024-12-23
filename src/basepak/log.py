@@ -6,7 +6,7 @@ import re
 import shutil
 from collections.abc import Mapping
 from functools import lru_cache, partial
-from typing import Callable, Optional
+from typing import Callable, Optional, AnyStr, Sequence
 
 import rich
 from rich.logging import RichHandler
@@ -200,3 +200,25 @@ def log_as(syntax: str, data: Optional[Mapping | str] = None, printer: Optional[
         raise NotImplementedError(f'Printing data as {syntax} is not implemented')
     printer = printer or get_logger('plain').info
     printer(log_msg)
+
+def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
+    """Redact sensitive information in a file by applying one or more regex substitutions in-place.
+
+    :param path: Path to the file to be redacted.
+    :param keys: List of sensitive keys to redact. Defaults to the log mask expressions.
+    """
+    path = str(path)
+    patterns = dict()
+    for key_ in keys or SECRET_KEYWORD_FLAGS:
+        patterns[rf'(?i)({key_}\s*=\s*)(\S+)'] = rf'\1{LOG_MASK}'
+        patterns[rf'(?i)({key_}\s+)(\S+)'] = rf'\1{LOG_MASK}'
+
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        content = f.read()
+
+    import re
+    for pattern, replacement in patterns.items():
+        content = re.sub(pattern, replacement, content)
+
+    with open(path, 'w', encoding='utf-8', errors='replace') as f:
+        f.write(content)
