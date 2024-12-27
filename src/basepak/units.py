@@ -194,8 +194,11 @@ class Range(click.ParamType):  # not subclassing 'range', as is marked as '@fina
             self.fail(f'{value} is not a valid integer', param, ctx)
 
 
-class Ranges(click.ParamType, tuple):
+class Ranges(click.ParamType):
     name = 'Ranges'
+
+    def __iter__(self):
+        return iter(tuple(self))
 
     def convert(self, value: str, param: click.Parameter, ctx: click.Context) -> tuple[range, ...]:
         return tuple(Range().convert(r, param, ctx) for r in value.split(','))

@@ -187,7 +187,7 @@ def test_ranges_is_cachable():
     except TypeError:
         assert False, "Ranges object is not hashable"
     @lru_cache
-    def test(ranges_):
+    def test(_):
         return 1
     try:
         test(ranges)
