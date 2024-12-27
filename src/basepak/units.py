@@ -166,7 +166,7 @@ class Unit:
         return str(self) if unit == 'auto' else f'{int(self.convert_to(unit))}{unit}'
 
 
-class Range(click.ParamType):
+class Range(click.ParamType):  # not subclassing 'range', as is marked as '@final'
     name = 'Range'
     start_default = 1
 
@@ -194,7 +194,7 @@ class Range(click.ParamType):
             self.fail(f'{value} is not a valid integer', param, ctx)
 
 
-class Ranges(click.ParamType):
+class Ranges(click.ParamType, tuple):
     name = 'Ranges'
 
     def convert(self, value: str, param: click.Parameter, ctx: click.Context) -> tuple[range, ...]:

@@ -176,3 +176,20 @@ def test_ranges_range_with_single(mock_param, mock_ctx):
     ranges_type = Ranges()
     result = ranges_type.convert(f'1-5,6,10', mock_param, mock_ctx)
     assert result == tuple([range(1, 5), range(6,7), range(10,11)])
+
+def test_ranges_is_cachable():
+    from functools import lru_cache
+
+    ranges = Ranges().convert('1-5,6,10', None, None)  # noqa Unexpected type
+
+    try:
+        hash(ranges)
+    except TypeError:
+        assert False, "Ranges object is not hashable"
+    @lru_cache
+    def test(ranges_):
+        return 1
+    try:
+        test(ranges)
+    except Exception as e:
+        assert False, f"Ranges object may not be cachable. Exception raised: {e}"
