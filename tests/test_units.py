@@ -162,7 +162,7 @@ def test_range_invalid_format(sep, mock_param, mock_ctx):
 def test_ranges_single_range(sep, mock_param, mock_ctx):
     ranges_type = Ranges()
     result = ranges_type.convert(f'1{sep}5', mock_param, mock_ctx)
-    assert result == [range(1, 5)]
+    assert result == tuple([range(1, 5)])
 
 
 @pytest.mark.parametrize('sep1', [':', '-'])
@@ -170,4 +170,9 @@ def test_ranges_single_range(sep, mock_param, mock_ctx):
 def test_ranges_valid(sep1, sep2, mock_param, mock_ctx):
     ranges_type = Ranges()
     result = ranges_type.convert(f'1{sep1}5,6{sep2}10', mock_param, mock_ctx)
-    assert result == [range(1, 5), range(6, 10)]
+    assert result == tuple([range(1, 5), range(6, 10)])
+
+def test_ranges_range_with_single(mock_param, mock_ctx):
+    ranges_type = Ranges()
+    result = ranges_type.convert(f'1-5,6,10', mock_param, mock_ctx)
+    assert result == tuple([range(1, 5), range(6,7), range(10,11)])

@@ -197,8 +197,8 @@ class Range(click.ParamType):
 class Ranges(click.ParamType):
     name = 'Ranges'
 
-    def convert(self, value: str, param: click.Parameter, ctx: click.Context) -> list[range]:
-        return [Range().convert(r, param, ctx) for r in value.split(',')]
+    def convert(self, value: str, param: click.Parameter, ctx: click.Context) -> tuple[range, ...]:
+        return tuple(Range().convert(r, param, ctx) for r in value.split(','))
 
 
 class IPAddress(click.ParamType):
