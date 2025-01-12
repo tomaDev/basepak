@@ -38,8 +38,16 @@ def generate(config: dict, destination_folder: Optional[str | Path] = None, file
     suf = '.yaml'
     if Path(filename + suf).exists():
         basename = os.path.basename(filename)
-        names = {f for f in os.listdir(Path(filename).parent) if f.startswith(basename)}
-        suf = next(f'-{i}{suf}' for i in range(1, 1000) if basename + f'-{i}{suf}' not in names)
+        i = 1
+        while f'{basename}-{i}{suf}' in {f for f in os.listdir(Path(filename).parent) if f.startswith(basename)}:
+            i += 1
+        suf = f'-{i}{suf}'
+        # if i > 1000:
+        #     from basepak import log
+        #     logger = log.get_logger('plain')
+        #     logger.warning(f'{i} files in {filename}*\n'
+        #                    f'That is too many files!\nPlease consider cleaning up')
+
     filename += suf
 
     yaml.SafeDumper.ignore_aliases = lambda *args: True
