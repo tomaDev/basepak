@@ -283,7 +283,8 @@ def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
 
 def create_oneliner_job(
         spec: dict, command: str | Executable, container_name: str, await_completion: Optional[bool] = False,
-        mode: Optional[str] = 'normal', redact: Optional[Sequence[str]] = None) -> str:
+        mode: Optional[str] = 'normal', redact: Optional[Sequence[str]] = None, completion_tail: Optional[int] = None
+) -> str:
     """Create a k8s job that runs a single command
     :param spec: dict with job parameters
     :param command: command to run in the job
@@ -291,6 +292,7 @@ def create_oneliner_job(
     :param await_completion: wait for job completion
     :param mode: execution mode
     :param redact: list of strings to redact from the job manifest
+    :param completion_tail: num of lines to print from job logs on completion. Defaults to k8s default
     :return: job name
     """
     from .templates import batch_job
@@ -322,13 +324,15 @@ def create_oneliner_job(
     log.redact_file(path, redact)
 
     if await_completion:
-        await_k8s_job_completion(spec)
+        await_k8s_job_completion(spec, completion_tail)
     return spec['JOB_NAME']
 
 
-def await_k8s_job_completion(spec: dict) -> bool:
+def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     """Wait for k8s job to complete
-    :param spec: dict with job parameters"""
+    :param spec: dict with job parameters
+    :param tail: num of lines to print from job logs on completion. Defaults to k8s default
+    """
     namespace = spec.get('NAMESPACE')
     if not namespace:
         raise ValueError('namespace not specified')
@@ -386,7 +390,8 @@ def await_k8s_job_completion(spec: dict) -> bool:
         raise RuntimeError(response.stderr)
 
     terminal_status = json.loads(kubectl.run(job_status_cmd).stdout)
-    kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s', show_cmd=False)
+    kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s',
+                   '' if not tail else f' --tail={tail}', show_cmd=False)
     if terminal_status.get('succeeded'):
         return True
 
