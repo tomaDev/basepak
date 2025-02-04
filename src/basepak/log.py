@@ -10,7 +10,7 @@ from typing import Callable, Optional, AnyStr, Sequence
 
 import rich
 from rich.logging import RichHandler
-from rich import theme, table
+from rich import theme, table, box
 
 LOGGERS: set[str] = set()
 LOG_MASK = '********'
@@ -33,7 +33,7 @@ rich.reconfigure(
     theme=theme.Theme(RICH_THEME_KWARGS_DEFAULT),
 )
 
-Table = partial(table.Table, header_style='bold magenta')
+Table = partial(table.Table, header_style='bold magenta', box=box.MARKDOWN)
 
 
 def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:
