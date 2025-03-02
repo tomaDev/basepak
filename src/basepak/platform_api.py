@@ -360,6 +360,9 @@ def get_storage_pools_data(session: requests.session, base_url: str, recalculate
 def _maybe_recalculate_storage_pools_stats(session, base_url, recalculate, msg_type, msg_text):
     if not recalculate:
         raise msg_type(msg_text)
+    if not session or session.auth[0] != Credentials.get('IGUAZIO_ADMINISTRATOR', {}).get('USERNAME'):
+        creds = Credentials.set()
+        session, _ = start_api_session(creds.get('IGUAZIO_ADMINISTRATOR'), base_url + consts.APIRoutes.SESSIONS)
     for node in (node['name'] for node in get_sysconfig(base_url, session)['data_cluster']['nodes']):
         run_request(session, base_url + consts.APIRoutes.STATISTICS.format(node), method='post')
     time.sleep(30)  # no way to await completion due to IG-17830. Sleeping as a workaround
