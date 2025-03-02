@@ -360,8 +360,7 @@ def get_storage_pools_data(session: requests.session, base_url: str, recalculate
 def _maybe_recalculate_storage_pools_stats(session, base_url, recalculate, msg_type, msg_text):
     if not recalculate:
         raise msg_type(msg_text)
-    node_names = [node['name'] for node in get_sysconfig(base_url, session)['data_cluster']['nodes']]
-    for node in node_names:
+    for node in (node['name'] for node in get_sysconfig(base_url, session)['data_cluster']['nodes']):
         run_request(session, base_url + consts.APIRoutes.STATISTICS.format(node), method='post')
     time.sleep(30)  # no way to await completion due to IG-17830. Sleeping as a workaround
     return get_storage_pools_data(session, base_url, recalculate=False)
@@ -396,7 +395,7 @@ def get_sysconfig(base_url: str, session: Optional[requests.sessions.Session] = 
     :param session: requests session. If session not provided, will create a new one from the global credentials
     :return: system configuration
     """
-    if not session:
+    if not session or session.auth[0] != Credentials.get('IGUAZIO_ADMINISTRATOR', {}).get('USERNAME'):
         creds = Credentials.set()
         session, _ = start_api_session(creds.get('IGUAZIO_ADMINISTRATOR'), base_url + consts.APIRoutes.SESSIONS)
     resp = run_request(session, base_url + consts.APIRoutes.APP_CLUSTERS).json()
@@ -442,9 +441,11 @@ def api_request(
         request_type,
         filter_: Union[List[str], str],
         data: Optional[str] = '',
-        json_loads: Optional[str] = ''
+        json_loads: Optional[str] = '',
+        auth: Optional[str] = None,
 ) -> dict:
     """Make a request to the platform API
+    :param auth: user:pass for basic auth
     :param data_node_ip: data node IP address
     :param endpoint: API endpoint
     :param request_type: HTTP method
@@ -456,7 +457,7 @@ def api_request(
     if not endpoint.startswith('/'):
         endpoint = '/' + endpoint
     base_url = consts.APIRoutes.BASE.format(data_node_ip or '127.0.0.1')
-    creds = Credentials.set()
+    creds = Credentials.set(auths={'IGUAZIO_ADMINISTRATOR': auth} if auth else None)
     session, _ = start_api_session(creds.get('IGUAZIO_ADMINISTRATOR'), base_url + consts.APIRoutes.SESSIONS)
     response = run_request(session, base_url + endpoint, request_type, data=data).json()
     if filter_:
