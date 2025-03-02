@@ -28,6 +28,7 @@ wheels = [
 
 [[package]]
 name = "basepak"
+version = "0.0.22"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
