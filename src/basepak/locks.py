@@ -27,6 +27,8 @@ def group_lock(func: Callable) -> Callable:
             logger.error('ctx argument must be provided')
             raise click.Abort()
         lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
+        if hasattr(ctx, 'command_path'):
+            os.environ['BASEPAK_LOG_FILE_NAME'] = ctx.command_path.replace(' ', '.') + '.log'
         try:
             os.makedirs(lock_file_dir, exist_ok=True)
         except PermissionError as e:
