@@ -21,14 +21,15 @@ def group_lock(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
-        ctx = next((arg for arg in args if isinstance(arg, click.Context)), None)
-        if ctx is None:
-            logger.error('ctx argument must be provided')
-            raise click.Abort()
+        ctx = click.get_current_context()
         lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
         if hasattr(ctx, 'command_path'):
             os.environ['BASEPAK_LOG_FILE_NAME'] = ctx.command_path.replace(' ', '.') + '.log'
+
+        logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
+        for name in log.SUPPORTED_LOGGERS:
+            log.get_logger(name=name, level=kwargs.get('log_level'))
+
         try:
             os.makedirs(lock_file_dir, exist_ok=True)
         except PermissionError as e:
