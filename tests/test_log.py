@@ -1,19 +1,20 @@
 import logging
+import os
+import tempfile
 
 import pytest
-import tempfile
-import os
+from rich.table import Table
 
 from basepak.log import (
     LOGGERS,
     SUPPORTED_LOGGERS,
-    LOG_MASK,
     MaskingFilter,
     get_logger,
     log_as,
     name_to_handler,
     redact_str,
     redact_file,
+    write_table_to_file,
 )
 
 REDACTION_TEST_DATA = [
@@ -295,13 +296,7 @@ def clear_existing_loggers():
 
     # Clear our module-level cache
     LOGGERS.clear()
-    # get_logger.cache_clear()
-#
-# @pytest.fixture(autouse=True)
-# def clear_loggers():
-#     clear_existing_loggers()
-#     yield
-#     clear_existing_loggers()
+
 
 def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     # Set up a temporary log file environment
@@ -329,3 +324,37 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     assert "Logger2 message" in content[1]
     assert "Logger3 message" in content[2]
     assert len(content) == 3
+
+
+def test_write_table_to_file(tmp_path, monkeypatch):
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_APP_NAME", "test_app")
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+
+    table = Table("Task", "Status", "Notes", header_style="bold magenta")
+    table.add_row("Task1", "Success", "Note1")
+    table.add_row("Task2", "Failure", "Note2")
+
+    write_table_to_file(table)
+
+    with open(log_file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Debug output (can be removed)
+    print("Logged content:")
+    print(content)
+
+    assert "Task" in content
+    assert "Success" in content
+    assert "Failure" in content
+
+    # Verify that ANSI escape sequences (like "\x1b[") are present,
+    # indicating that color formatting was preserved.
+    import re
+    ansi_escape = re.compile(r'\x1b\[')
+    assert ansi_escape.search(content), "No ANSI escape codes found in the log output."
