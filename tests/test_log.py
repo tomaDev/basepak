@@ -277,3 +277,55 @@ def test_redact_file_empty(create_tempfile):
         result = f.read()
 
     assert result == ""
+
+
+def clear_existing_loggers():
+    """Clear the logging configuration for testing."""
+    # Remove handlers from the root logger
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+
+    # Clear all handlers from all existing loggers
+    for logger_name in list(logging.root.manager.loggerDict):
+        logger = logging.getLogger(logger_name)
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            logger.level = logging.NOTSET
+
+    # Clear our module-level cache
+    LOGGERS.clear()
+    # get_logger.cache_clear()
+#
+# @pytest.fixture(autouse=True)
+# def clear_loggers():
+#     clear_existing_loggers()
+#     yield
+#     clear_existing_loggers()
+
+def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
+    # Set up a temporary log file environment
+    clear_existing_loggers()
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_APP_NAME", "test_app")
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+
+    logger1 = get_logger("short", level='debug')
+    logger2 = get_logger("long")
+    logger3 = get_logger("plain", level='info')
+    logger1.info("Logger1 message")
+    logger2.info("Logger2 message")
+    logger3.info("Logger3 message")
+
+    with open(log_file_path, "r", encoding="utf-8") as f:
+        content = f.readlines()
+    print(content)
+
+    assert "Logger1 message" in content[0]
+    assert "Logger2 message" in content[1]
+    assert "Logger3 message" in content[2]
+    assert len(content) == 3

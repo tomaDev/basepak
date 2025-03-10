@@ -140,7 +140,7 @@ def name_to_handler(name: str, *args, **kwargs) -> logging.StreamHandler:
         raise ValueError(f'Unsupported logger name: {name}. Supported names are: {SUPPORTED_LOGGERS.keys()}')
 
 
-@lru_cache
+# @lru_cache
 def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
     """Retrieve or create a globally scoped logger
 
