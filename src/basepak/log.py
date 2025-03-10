@@ -6,12 +6,12 @@ import os
 import re
 import shutil
 from collections.abc import Mapping
-from functools import lru_cache, partial
+from functools import partial
 from typing import Callable, Optional, AnyStr, Sequence
 
 import rich
 from rich.logging import RichHandler
-from rich import theme, table, box
+from rich import theme, table, box, console
 
 LOGGERS: set[str] = set()
 LOG_MASK = '********'
@@ -165,8 +165,6 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
             file_stream = open(log_path, 'a', encoding='utf-8')
-            from rich import console
-
             term_width = shutil.get_terminal_size(fallback=(140, 24)).columns
             file_console = console.Console(file=file_stream, force_terminal=True, tab_size=2, width=term_width)
             file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
@@ -175,6 +173,15 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
         except:  # noqa too broad - best effort basis
             pass
     return logger
+
+def write_table_to_file(table_: rich.table.Table) -> None:
+    if log_file_name := os.environ.get('BASEPAK_LOG_FILE_NAME'):
+        app_name = os.environ.get('BASEPAK_APP_NAME', 'basepak')
+        log_path =  os.environ.get('BASEPAK_LOG_PATH', f'/var/log/iguazio/{app_name}/{log_file_name}')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            writer = console.Console(file=f, force_terminal=True)
+            writer.print(table_)
+
 
 
 class DateTimeEncoder(json.JSONEncoder):
