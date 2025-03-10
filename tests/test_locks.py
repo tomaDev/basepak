@@ -22,7 +22,9 @@ def ctx():
         shutil.rmtree(lock_file_dir)
 
 
-def test_lock_and_release(ctx):
+def test_lock_and_release(monkeypatch, ctx):
+    monkeypatch.setattr(click, 'get_current_context', lambda: ctx)
+
     @group_lock
     def test_func(ctx):
         time.sleep(0.5)  # Simulate some work
