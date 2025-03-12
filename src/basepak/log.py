@@ -17,6 +17,10 @@ LOGGERS: set[str] = set()
 LOG_MASK = '********'
 SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'access-key', 'db-auth-key']
 SECRET_KEYWORD_PATTERNS = ['password && echo ', "[\"']PASSWORD[\"']:[ ]?[\"']", 'PASSWORD=', 'password: ']
+LOG_FILE_NAME_DEFAULT = 'basepak.log'
+APP_NAME_DEFAULT = 'basepak'
+
+LOG_PATH_PATTERN = '/var/log/iguazio/{}/{}'
 
 EXPRESSIONS_TO_MASK = [
     rf'((?:--)?{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
@@ -140,7 +144,6 @@ def name_to_handler(name: str, *args, **kwargs) -> logging.StreamHandler:
         raise ValueError(f'Unsupported logger name: {name}. Supported names are: {SUPPORTED_LOGGERS.keys()}')
 
 
-# @lru_cache
 def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
     """Retrieve or create a globally scoped logger
 
@@ -158,29 +161,37 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
 
     LOGGERS.add(name)
 
-    if log_file_name := os.environ.get('BASEPAK_LOG_FILE_NAME'):
-        try:
-            app_name = os.environ.get('BASEPAK_APP_NAME', 'basepak')
-            log_path =  os.environ.get('BASEPAK_LOG_PATH', f'/var/log/iguazio/{app_name}/{log_file_name}')
-            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    if not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE'):
+        return logger
 
-            file_stream = open(log_path, 'a', encoding='utf-8')
-            term_width = shutil.get_terminal_size(fallback=(140, 24)).columns
-            file_console = console.Console(file=file_stream, force_terminal=True, tab_size=2, width=term_width)
-            file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
-            file_handler.addFilter(MaskingFilter())
-            logger.addHandler(file_handler)
-        except:  # noqa too broad - best effort basis
-            pass
+    log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
+    try:
+        log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+        file_stream = open(log_path, 'a', encoding='utf-8', errors='replace')
+        term_width = shutil.get_terminal_size(fallback=(140, 24)).columns
+        file_console = console.Console(file=file_stream, force_terminal=True, tab_size=2, width=term_width)
+        file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
+        file_handler.addFilter(MaskingFilter())
+        logger.addHandler(file_handler)
+    except:  # noqa too broad - best effort basis
+        pass
     return logger
 
-def write_table_to_file(table_: rich.table.Table) -> None:
-    if log_file_name := os.environ.get('BASEPAK_LOG_FILE_NAME'):
-        app_name = os.environ.get('BASEPAK_APP_NAME', 'basepak')
-        log_path =  os.environ.get('BASEPAK_LOG_PATH', f'/var/log/iguazio/{app_name}/{log_file_name}')
-        with open(log_path, 'a', encoding='utf-8') as f:
-            writer = console.Console(file=f, force_terminal=True)
-            writer.print(table_)
+def _write_table_to_file(table_: rich.table.Table) -> None:
+    log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
+    log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, 'a', encoding='utf-8', errors='replace') as f:
+        writer = console.Console(file=f, force_terminal=True)
+        writer.print(table_)
+
+
+def print_table(table_: rich.table.Table) -> None:
+    rich.print(table_)
+    if os.environ.get('BASEPAK_WRITE_LOG_TO_FILE'):
+        _write_table_to_file(table_)
 
 
 

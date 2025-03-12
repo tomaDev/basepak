@@ -14,7 +14,7 @@ from basepak.log import (
     name_to_handler,
     redact_str,
     redact_file,
-    write_table_to_file,
+    print_table,
 )
 
 REDACTION_TEST_DATA = [
@@ -298,16 +298,51 @@ def clear_existing_loggers():
     LOGGERS.clear()
 
 
-def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
+def test_write_log_to_file(tmp_path, monkeypatch):
     # Set up a temporary log file environment
     clear_existing_loggers()
     log_file_name = "test.log"
     log_dir = tmp_path / "logs"
     log_file_path = str(log_dir / log_file_name)
 
+    monkeypatch.setenv("BASEPAK_WRITE_LOG_TO_FILE", "True")
     monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
-    monkeypatch.setenv("BASEPAK_APP_NAME", "test_app")
     monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+
+    logger = get_logger("short", level='debug')
+    logger.info("Test message")
+
+    with open(log_file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "Test message" in content
+
+def test_no_write_log_to_file(tmp_path, monkeypatch):
+    assert not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')
+    clear_existing_loggers()
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_file_path = str(log_dir / log_file_name)
+
+    assert not os.path.exists(log_file_path)
+
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+
+    logger = get_logger("short", level='debug')
+    logger.info("Test message")
+
+    assert not os.path.exists(log_file_path)
+
+
+def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
+    clear_existing_loggers()
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
 
     logger1 = get_logger("short", level='debug')
     logger2 = get_logger("long")
@@ -326,21 +361,24 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     assert len(content) == 3
 
 
-def test_write_table_to_file(tmp_path, monkeypatch):
-    log_file_name = "test.log"
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    log_file_path = str(log_dir / log_file_name)
-
-    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
-    monkeypatch.setenv("BASEPAK_APP_NAME", "test_app")
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
-
+@pytest.fixture
+def _table():
     table = Table("Task", "Status", "Notes", header_style="bold magenta")
     table.add_row("Task1", "Success", "Note1")
     table.add_row("Task2", "Failure", "Note2")
+    return table
 
-    write_table_to_file(table)
+
+def test_write_table_to_file(tmp_path, monkeypatch, _table):
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
+
+    print_table(_table)
 
     with open(log_file_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -358,3 +396,17 @@ def test_write_table_to_file(tmp_path, monkeypatch):
     import re
     ansi_escape = re.compile(r'\x1b\[')
     assert ansi_escape.search(content), "No ANSI escape codes found in the log output."
+
+
+def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
+    assert not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')
+    log_file_name = "test.log"
+    log_dir = tmp_path / "logs"
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+
+    print_table(_table)
+
+    assert not os.path.exists(log_file_path)
