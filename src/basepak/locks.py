@@ -23,8 +23,8 @@ def group_lock(func: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
         lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
-        if hasattr(ctx, 'command_path'):
-            os.environ['BASEPAK_LOG_FILE_NAME'] = ctx.command_path.replace(' ', '.') + '.log'
+        if os.environ.get('BASEPAK_WRITE_LOG_TO_FILE') and hasattr(ctx, 'command_path'):
+            os.environ.setdefault('BASEPAK_LOG_FILE_NAME', ctx.command_path.replace(' ', '.') + '.log')
 
         logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
         for name in log.SUPPORTED_LOGGERS:
