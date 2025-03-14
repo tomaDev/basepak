@@ -7,11 +7,12 @@ import re
 import shutil
 from collections.abc import Mapping
 from functools import partial
+from numbers import Number
 from typing import Callable, Optional, AnyStr, Sequence
 
 import rich
-from rich.logging import RichHandler
 from rich import theme, table, box, console
+from rich.logging import RichHandler
 
 LOGGERS: set[str] = set()
 LOG_MASK = '********'
@@ -19,8 +20,6 @@ SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'ac
 SECRET_KEYWORD_PATTERNS = ['password && echo ', "[\"']PASSWORD[\"']:[ ]?[\"']", 'PASSWORD=', 'password: ']
 LOG_FILE_NAME_DEFAULT = 'basepak.log'
 APP_NAME_DEFAULT = 'basepak'
-
-LOG_PATH_PATTERN = '/var/log/iguazio/{}/{}'
 
 EXPRESSIONS_TO_MASK = [
     rf'((?:--)?{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
@@ -68,6 +67,8 @@ class MaskingFilter(logging.Filter):
 
 class _BaseRichHandler(RichHandler):
     def __init__(self, *args, **kwargs):
+        if is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR')):
+            kwargs['console'] = console.Console(no_color=True)
         kwargs.update({
             'show_path': False,
             # 'markup': False,  # added for visibility, as this is the default. On k8s events, markup may error out
@@ -83,7 +84,7 @@ class _RichRichHandler(_BaseRichHandler):
         super().__init__(*args, **kwargs)
         self.tracebacks_suppress = [  # solid libs, skip tracebacks
             # installed
-            'click', 'requests', 'urllib3', 'paramiko', 'tenacity',
+            'click', 'requests', 'urllib3', 'paramiko', 'tenacity', 'rich', 'paramiko', 'psutil', 'scp',
             # built-in
             'futures', 'concurrent',
         ]
@@ -161,7 +162,7 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
 
     LOGGERS.add(name)
 
-    if not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE'):
+    if not is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
         return logger
 
     log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
@@ -169,9 +170,13 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
         log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-        file_stream = open(log_path, 'a', encoding='utf-8', errors='replace')
-        term_width = shutil.get_terminal_size(fallback=(140, 24)).columns
-        file_console = console.Console(file=file_stream, force_terminal=True, tab_size=2, width=term_width)
+        file_console = console.Console(
+            force_terminal=True,
+            tab_size=2,
+            file=open(log_path, 'a', encoding='utf-8', errors='replace'),
+            width=shutil.get_terminal_size(fallback=(140, 24)).columns,
+            no_color=is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR'))
+        )
         file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
         file_handler.addFilter(MaskingFilter())
         logger.addHandler(file_handler)
@@ -184,15 +189,14 @@ def _write_table_to_file(table_: rich.table.Table) -> None:
     log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, 'a', encoding='utf-8', errors='replace') as f:
-        writer = console.Console(file=f, force_terminal=True)
-        writer.print(table_)
+        w = console.Console(file=f, force_terminal=True, no_color=is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR')))
+        w.print(table_)
 
 
 def print_table(table_: rich.table.Table) -> None:
     rich.print(table_)
-    if os.environ.get('BASEPAK_WRITE_LOG_TO_FILE'):
+    if is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
         _write_table_to_file(table_)
-
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -258,3 +262,15 @@ def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
 
     with open(path, 'w', encoding='utf-8', errors='replace') as f:
         f.write(content)
+
+
+def is_yes(input_: Optional[str | Number]) -> bool:
+    """Check if the input string is a yes
+    :param input_: input string
+    :return: True if the input string is a yes
+    """
+    if input_ is None:
+        return False
+    if isinstance(input_, Number):
+        return bool(input_)
+    return input_.lower() in ('y', 'yes', 'true', '1')
