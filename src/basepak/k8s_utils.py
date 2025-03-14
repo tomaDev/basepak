@@ -328,6 +328,8 @@ def create_oneliner_job(
     return spec['JOB_NAME']
 
 
+# todo: this function is buggy. It was created because in k8s <=1.21 kubectl errors on many --for conditions.
+#   Now we've dropped support for k8s <v1.24, so this function should be refactored to use kubectl wait
 def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     """Wait for k8s job to complete
     :param spec: dict with job parameters

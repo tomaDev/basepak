@@ -363,39 +363,39 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
 
 @pytest.fixture
 def _table():
-    table = Table("Task", "Status", "Notes", header_style="bold magenta")
-    table.add_row("Task1", "Success", "Note1")
-    table.add_row("Task2", "Failure", "Note2")
+    table = Table('Task', 'Status', 'Notes', header_style='bold magenta')
+    table.add_row("Task1", 'Success', 'Note1')
+    table.add_row('Task2', 'Failure', 'Note2')
     return table
 
 
 def test_write_table_to_file(tmp_path, monkeypatch, _table):
-    log_file_name = "test.log"
-    log_dir = tmp_path / "logs"
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
 
     print_table(_table)
 
-    with open(log_file_path, "r", encoding="utf-8") as f:
+    with open(log_file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
     # Debug output (can be removed)
-    print("Logged content:")
+    print('Logged content:')
     print(content)
 
-    assert "Task" in content
-    assert "Success" in content
-    assert "Failure" in content
+    assert 'Task' in content
+    assert 'Success' in content
+    assert 'Failure' in content
 
     # Verify that ANSI escape sequences (like "\x1b[") are present,
     # indicating that color formatting was preserved.
     import re
     ansi_escape = re.compile(r'\x1b\[')
-    assert ansi_escape.search(content), "No ANSI escape codes found in the log output."
+    assert ansi_escape.search(content), 'No ANSI escape codes found in the log output!'
 
 
 def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
@@ -404,9 +404,32 @@ def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
     log_dir = tmp_path / "logs"
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
 
     print_table(_table)
 
     assert not os.path.exists(log_file_path)
+
+
+def test_console_no_color(tmp_path, monkeypatch):
+    clear_existing_loggers()
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
+    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
+    monkeypatch.setenv('BASEPAK_CONSOLE_NO_COLOR', 'yes')
+
+    logger = get_logger('short')
+    logger.info('Test message')
+    with open(log_file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    print(content)
+
+    import re
+    ansi_escape = re.compile(r'\x1b\[')
+    assert not ansi_escape.search(content)
