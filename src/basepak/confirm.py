@@ -1,3 +1,8 @@
+"""Confirmation prompts
+
+If writing to log files, these will be omitted
+"""
+
 from typing import Optional
 
 

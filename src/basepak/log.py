@@ -32,9 +32,23 @@ RICH_THEME_KWARGS_DEFAULT = {
     'logging.level.warning': 'bold yellow',
 }
 
+
+def is_yes(input_: Optional[str | Number]) -> bool:
+    """Check if the input string is a yes
+    :param input_: input string
+    :return: True if the input string is a yes
+    """
+    if input_ is None:
+        return False
+    if isinstance(input_, Number):
+        return bool(input_)
+    return input_.lower() in ('y', 'yes', 'true', '1')
+
+
 rich.reconfigure(
     width=shutil.get_terminal_size(fallback=(140, 24)).columns,  # fallback for running in cron
     theme=theme.Theme(RICH_THEME_KWARGS_DEFAULT),
+    force_terminal=not is_yes(os.environ.get('NO_COLOR')),
 )
 
 Table = partial(table.Table, header_style='bold magenta', box=box.MARKDOWN)
@@ -67,8 +81,6 @@ class MaskingFilter(logging.Filter):
 
 class _BaseRichHandler(RichHandler):
     def __init__(self, *args, **kwargs):
-        # if is_yes(os.environ.get('NO_COLOR')):
-        #     kwargs['console'] = console.Console(no_color=True)
         kwargs.update({
             'show_path': False,
             # 'markup': False,  # added for visibility, as this is the default. On k8s events, markup may error out
@@ -165,13 +177,16 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
     if not is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
         return logger
 
-    log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
+    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE_NAME', LOG_FILE_NAME_DEFAULT)
     try:
-        log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
+        log_path =  os.environ.setdefault('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-        file_console = console.Console(file=open(log_path, 'a', encoding='utf-8', errors='replace'), tab_size=2,
-                                       width=shutil.get_terminal_size(fallback=(140, 24)).columns, force_terminal=True,)
+        file_console = console.Console(
+            width=shutil.get_terminal_size(fallback=(140, 24)).columns,
+            force_terminal=not is_yes(os.environ.get('NO_COLOR')),
+        )
+        file_console.file = open(log_path, 'a', encoding='utf-8', errors='replace')
         file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
         file_handler.addFilter(MaskingFilter())
         logger.addHandler(file_handler)
@@ -180,11 +195,11 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
     return logger
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
-    log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
-    log_path = os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
+    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE_NAME', LOG_FILE_NAME_DEFAULT)
+    log_path =  os.environ.setdefault('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, 'a', encoding='utf-8', errors='replace') as f:
-        w = console.Console(file=f, force_terminal=True)
+        w = console.Console(file=f, force_terminal=not is_yes(os.environ.get('NO_COLOR')))
         w.print(table_)
 
 
@@ -257,15 +272,3 @@ def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
 
     with open(path, 'w', encoding='utf-8', errors='replace') as f:
         f.write(content)
-
-
-def is_yes(input_: Optional[str | Number]) -> bool:
-    """Check if the input string is a yes
-    :param input_: input string
-    :return: True if the input string is a yes
-    """
-    if input_ is None:
-        return False
-    if isinstance(input_, Number):
-        return bool(input_)
-    return input_.lower() in ('y', 'yes', 'true', '1')
