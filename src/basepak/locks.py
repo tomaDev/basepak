@@ -22,14 +22,20 @@ def group_lock(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
-        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
-        if os.environ.get('BASEPAK_WRITE_LOG_TO_FILE') and hasattr(ctx, 'command_path'):
-            os.environ.setdefault('BASEPAK_LOG_FILE_NAME', ctx.command_path.replace(' ', '.') + '.log')
+        if log_writable_commands := ctx.obj.get('log_writable_commands'):
+            command_leaf = ctx.command_path.split()[-1]
+            for command in log_writable_commands:
+                if command_leaf == command:
+                    log_file_name_default = ctx.command_path.replace(' ', '.') + '.log'
+                    os.environ.setdefault('BASEPAK_WRITE_LOG_TO_FILE', 'True')
+                    os.environ.setdefault('BASEPAK_LOG_FILE_NAME', log_file_name_default)
+                    break
 
         logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
-        for name in log.SUPPORTED_LOGGERS:
-            log.get_logger(name=name, level=kwargs.get('log_level'))
+        # for name in log.SUPPORTED_LOGGERS:
+        #     log.get_logger(name=name, level=kwargs.get('log_level'))
 
+        lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
         try:
             os.makedirs(lock_file_dir, exist_ok=True)
         except PermissionError as e:
