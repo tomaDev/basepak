@@ -67,8 +67,8 @@ class MaskingFilter(logging.Filter):
 
 class _BaseRichHandler(RichHandler):
     def __init__(self, *args, **kwargs):
-        if is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR')):
-            kwargs['console'] = console.Console(no_color=True)
+        # if is_yes(os.environ.get('NO_COLOR')):
+        #     kwargs['console'] = console.Console(no_color=True)
         kwargs.update({
             'show_path': False,
             # 'markup': False,  # added for visibility, as this is the default. On k8s events, markup may error out
@@ -170,13 +170,8 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
         log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-        file_console = console.Console(
-            force_terminal=True,
-            tab_size=2,
-            file=open(log_path, 'a', encoding='utf-8', errors='replace'),
-            width=shutil.get_terminal_size(fallback=(140, 24)).columns,
-            no_color=is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR'))
-        )
+        file_console = console.Console(file=open(log_path, 'a', encoding='utf-8', errors='replace'), tab_size=2,
+                                       width=shutil.get_terminal_size(fallback=(140, 24)).columns, force_terminal=True,)
         file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
         file_handler.addFilter(MaskingFilter())
         logger.addHandler(file_handler)
@@ -186,10 +181,10 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
     log_file_name = os.environ.get('BASEPAK_LOG_FILE_NAME') or LOG_FILE_NAME_DEFAULT
-    log_path =  os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
+    log_path = os.environ.get('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, 'a', encoding='utf-8', errors='replace') as f:
-        w = console.Console(file=f, force_terminal=True, no_color=is_yes(os.environ.get('BASEPAK_CONSOLE_NO_COLOR')))
+        w = console.Console(file=f, force_terminal=True)
         w.print(table_)
 
 

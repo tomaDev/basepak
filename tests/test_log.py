@@ -411,25 +411,45 @@ def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
 
     assert not os.path.exists(log_file_path)
 
-
-def test_console_no_color(tmp_path, monkeypatch):
-    clear_existing_loggers()
-    log_file_name = 'test.log'
-    log_dir = tmp_path / 'logs'
-    log_file_path = str(log_dir / log_file_name)
-
-    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
-    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
-    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
-    monkeypatch.setenv('BASEPAK_CONSOLE_NO_COLOR', 'yes')
-
-    logger = get_logger('short')
-    logger.info('Test message')
-    with open(log_file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    print(content)
-
-    import re
-    ansi_escape = re.compile(r'\x1b\[')
-    assert not ansi_escape.search(content)
+#
+# def test_logger_no_color(tmp_path, monkeypatch):
+#     clear_existing_loggers()
+#     log_file_name = 'test.log'
+#     log_dir = tmp_path / 'logs'
+#     log_file_path = str(log_dir / log_file_name)
+#
+#     monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+#     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
+#     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
+#     monkeypatch.setenv('NO_COLOR', '1')
+#
+#     logger = get_logger('short')
+#     logger.info('Test message')
+#     with open(log_file_path, 'r', encoding='utf-8') as f:
+#         content = f.read()
+#
+#     print(content)
+#
+#     import re
+#     ansi_escape = re.compile(r'\x1b\[')
+#     assert not ansi_escape.search(content)
+#
+# def test_write_table_no_color(tmp_path, monkeypatch, _table):
+#     clear_existing_loggers()
+#     log_file_name = 'test.log'
+#     log_dir = tmp_path / 'logs'
+#     log_file_path = str(log_dir / log_file_name)
+#
+#     monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+#     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
+#     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
+#     monkeypatch.setenv('NO_COLOR', '1')
+#
+#     print_table(_table)
+#
+#     with open(log_file_path, 'r', encoding='utf-8') as f:
+#         content = f.read()
+#
+#     import re
+#     ansi_escape = re.compile(r'\x1b\[')
+#     assert not ansi_escape.search(content)
