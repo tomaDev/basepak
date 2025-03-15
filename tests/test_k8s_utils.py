@@ -1,22 +1,26 @@
-import os
-import tempfile
-from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+import pytest
 
 from basepak import k8s_utils
 from basepak.versioning import Version
-import pytest
+
 
 def test_get_kubectl_version():
     out = k8s_utils.get_kubectl_version()
     assert isinstance(out, Version)
 
-def test_kubectl_dump():
-    tmp = tempfile.mktemp()
-    k8s_utils.kubectl_dump('kubectl version --client', tmp, mode='unsafe')
-    assert Path(tmp).exists()
-    assert Path(tmp).read_text()
-    os.unlink(tmp)
+def test_kubectl_dump(tmp_path):
+    tmp_file = tmp_path / 'tmp.yaml'
+    k8s_utils.kubectl_dump('kubectl version --client', tmp_file, mode='unsafe')
+    assert tmp_file.exists()
+    assert tmp_file.read_text()
+
+def test_kubectl_upload(tmp_path):
+    tmp_file = tmp_path / 'tmp.yaml'
+    tmp_file.write_text('kubectl version --client')
+    k8s_utils.kubectl_upload('test', source_path=tmp_path, target_path='/tmp/file', mode='dry-run')
+
 
 @pytest.mark.parametrize(
     "mock_partitions,test_path,expected,raises_error", [

@@ -31,7 +31,7 @@ def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str =
 
     :param command: kubectl command to run
     :param output_file: file to save output to
-    :param mode: 'dry-run' or 'normal'
+    :param mode: execution mode. 'dry-run' only shows command, any other mode executes
     """
     command = str(command)
     output_file = str(output_file)
@@ -43,6 +43,47 @@ def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str =
     error_file = f'{output_file}.err'
     subprocess_stream(command, output_file=output_file, error_file=error_file)
     if os.path.getsize(error_file) == 0:
+        os.remove(error_file)
+
+
+def kubectl_upload(remote: str, source_path: str | Path, target_path: str | Path, mode: str = 'dry-run') -> None:
+    """Upload input file to remote using kubectl exec
+
+    End result is the equivalent of:
+
+    `kubectl exec -i remote -- sh -c 'cat > source_path' < source_path`
+
+    Example with values:
+
+    kubectl exec -i --namespace tests --container c1  deployments/tests -- sh -c 'cat > /tmp/x.log' < /user/some.log
+
+    The aim here is to avoid using `kubectl cp` due to BKP-30
+
+    :param remote: remote to upload to using kubectl exec
+    :param source_path: file to upload (its contents are piped into the command)
+    :param target_path: target file on the remote
+    :param mode: execution mode. 'dry-run' only shows command, any other mode executes
+    """
+    logger = log.get_logger(name='plain')
+    if not os.path.exists(source_path):
+        logger.error(f'{source_path} does not exist')
+        raise FileNotFoundError(f'{source_path} does not exist')
+
+    if os.path.getsize(source_path) == 0:
+        logger.warning(f'{source_path} has no content!')
+        return
+
+    kubectl = Executable('uploader', 'kubectl exec -i', remote, f"-- sh -c 'cat > {target_path}'" )
+    logger.info(f'{kubectl} < {source_path}')
+
+    if mode == 'dry-run':
+        return
+
+    error_file = f'{source_path}.err'
+    with open(str(source_path), 'rb') as f_in:
+        subprocess_stream(str(kubectl), stdin=f_in, error_file=error_file)
+
+    if os.path.exists(error_file) and os.path.getsize(error_file) == 0:
         os.remove(error_file)
 
 
