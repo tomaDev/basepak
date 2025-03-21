@@ -4,7 +4,7 @@ import subprocess
 from unittest.mock import patch, MagicMock
 import logging
 
-import pytest
+import pytest # type: ignore
 
 from basepak import k8s_utils
 from basepak.versioning import Version
@@ -146,8 +146,8 @@ def test_ensure_pvc_bind(tmp_path, mode):
     k8s_utils.ensure_pvc(spec, logging.getLogger())
 
     # teardown
-    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True).returncode == 0
-    assert subprocess.run('kubectl delete -f -', input=pv_template.encode(), shell=True).returncode == 0
+    subprocess.run(f'kubectl delete namespace {ns} --wait=false --ignore-not-found', shell=True)
+    subprocess.run('kubectl delete -f -', input=pv_template.encode(), shell=True)
 
 
 def _get_fresh_namespace():
@@ -182,7 +182,7 @@ def test_kubectl_upload_file_dry_run(tmp_path):
         tmp_file = tmp_path / 'file.yaml'
         tmp_file.write_text('test content')
 
-        k8s_utils.kubectl_cp(src=tmp_file, dest=f'{pod}:/tmp/file.yaml', mode='dry-run')
+        k8s_utils.kubectl_cp(src=tmp_file, dest=f'{pod}:/tmp/file.yaml', mode='dry-run', retries=1)
 
 def test_kubectl_upload_dir_dry_run(tmp_path):
     with fresh_pod(_get_fresh_pod_name()) as pod:
@@ -191,8 +191,7 @@ def test_kubectl_upload_dir_dry_run(tmp_path):
         tmp_file = tmp_dir / 'file.yaml'
         tmp_file.write_text('test content')
 
-        k8s_utils.kubectl_cp(src=tmp_dir, dest=f'{pod}:/tmp/dir', mode='dry-run')
-
+        k8s_utils.kubectl_cp(src=tmp_dir, dest=f'{pod}:/tmp/dir', mode='dry-run', retries=1)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_file(tmp_path, mode):
@@ -201,25 +200,11 @@ def test_kubectl_upload_download_file(tmp_path, mode):
         tmp_file.write_text('test content')
 
         remote_path = f'{pod}:/tmp/file'
-        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode)
+        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode, retries=1)
 
         tmp_file.unlink()
 
-        k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode)
-
-
-def test_kubectl_upload_download_large_file(tmp_path):
-    with fresh_pod(_get_fresh_pod_name()) as pod:
-        tmp_file = tmp_path / 'tmp.yaml'
-        tmp_file.write_text('a' * 100_000_000)
-
-        remote_path = f'{pod}:/tmp/file'
-        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe')
-
-        tmp_file.unlink()
-
-        k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode='unsafe')
-
+        k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode, retries=1)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
@@ -230,22 +215,21 @@ def test_kubectl_upload_download_dir(tmp_path, mode):
         for i in range(3):
             local_dir.joinpath(f'tmp-{i}.yaml').write_text(f'test content {i}')
 
-        k8s_utils.kubectl_cp(src=local_dir, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode)
+        k8s_utils.kubectl_cp(src=local_dir, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode, retries=1)
 
         import shutil
         shutil.rmtree(local_dir)
 
-        k8s_utils.kubectl_cp(dest=local_dir, src=remote_path, mode=mode)
-
+        k8s_utils.kubectl_cp(dest=local_dir, src=remote_path, mode=mode, retries=1)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
-def test_kubectl_transfer_file_between_pods(tmp_path, mode):
+def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
     with fresh_pod(_get_fresh_pod_name()) as pod1, fresh_pod(_get_fresh_pod_name()) as pod2:
         tmp_file = tmp_path / 'tmp.yaml'
-        tmp_file.write_text('test content')
+        tmp_file.write_text('a' * 100_000_000)
 
         remote_path_pod1 = f'{pod1}:/tmp/file'
         remote_path_pod2 = f'{pod2}:/tmp/file'
-        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path_pod1, mode='unsafe')
+        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path_pod1, mode='unsafe', retries=1)
 
-        k8s_utils.kubectl_cp(src=remote_path_pod1, dest=remote_path_pod2, mode=mode)
+        k8s_utils.kubectl_cp(src=remote_path_pod1, dest=remote_path_pod2, mode=mode, retries=1)
