@@ -208,6 +208,19 @@ def test_kubectl_upload_download_file(tmp_path, mode):
         k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode)
 
 
+def test_kubectl_upload_download_large_file(tmp_path):
+    with fresh_pod(_get_fresh_pod_name()) as pod:
+        tmp_file = tmp_path / 'tmp.yaml'
+        tmp_file.write_text('a' * 100_000_000)
+
+        remote_path = f'{pod}:/tmp/file'
+        k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe')
+
+        tmp_file.unlink()
+
+        k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode='unsafe')
+
+
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
     with fresh_pod(_get_fresh_pod_name()) as pod:

@@ -133,7 +133,7 @@ def _download(src: str, dest: str, err_file: str, mode: str, show_: bool, logger
     """Download a file or directory from remote using kubectl exec.
 
     For a file, this is equivalent to:
-      kubectl exec host -- dd if={source_path} > {target_path}
+      kubectl exec host -- cat {source_path} > {target_path}
 
     For a directory (when is_dir=True), this is similar* to:
       kubectl exec host -- tar cf - {source_path} | tar xf - -C {target_path}
@@ -176,7 +176,7 @@ def _download(src: str, dest: str, err_file: str, mode: str, show_: bool, logger
         raise RuntimeError(banner)
 
     flags = flags or {}
-    kubectl.set_args((flags.get('read_file', 'dd if={path}')).format(path=s_path))
+    kubectl.set_args((flags.get('read_file', 'cat {path}')).format(path=s_path))
     if is_dir:
         kubectl.set_args(flags.get('read_dir', 'tar cf - {path}').format(path=s_path))
     if show_:
@@ -215,11 +215,11 @@ def _upload(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: 
 
     End result is the equivalent of:
 
-    `kubectl exec -i remote -- sh -c 'dd of=source_path' < source_path`
+    `kubectl exec -i remote -- sh -c 'cat > source_path' < source_path`
 
     Example with values:
 
-    `kubectl exec -i --namespace tests --container c1  deployments/tests -- dd of=/tmp/x.log < /user/some.log`
+    `kubectl exec -i --namespace tests --container c1  deployments/tests -- sh -c 'cat > /tmp/x.log' < /user/some.log`
 
     :param show_: log the upload command that is executed
     :param src: file to upload (its contents are piped into the command)
@@ -241,7 +241,7 @@ def _upload(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: 
     if source_exists and os.path.isdir(src):
         return _upload_dir(src, t_path, err_file, remote, mode, show_, logger)
 
-    command = f'kubectl exec -i {remote} -- dd conv=fsync of={t_path}'
+    command = f"kubectl exec -i {remote} -- sh -c 'cat > {t_path}'"
     if show_:
         logger.info(command + f' < {src}')
 
@@ -269,7 +269,7 @@ def _upload_dir(src: str, dest: str, err_file: str, remote: str, mode: str, show
     ls_ = exec_.run('ls', target_dir).stdout.split()
 
     upload_path = dest + next(f'-{i}.tar' for i in range(1, 999) if f'{os.path.basename(dest)}-{i}.tar' not in ls_)
-    command = f'kubectl exec -i {remote} -- dd conv=fsync of={upload_path}'
+    command = f"kubectl exec -i {remote} -- sh -c 'cat > {upload_path}'"
     local_tar_cmd = f'tar cf - -C {os.path.dirname(src)} {os.path.basename(src)}'
 
     if show_:
