@@ -93,8 +93,6 @@ class Executable:
 
     def show(self, *args: str, level: str = 'warning', **kwargs: Dict[str, str]) -> None:
         """Log the command
-        :param args: additional command positional arguments
-        :param kwargs: additional command kwargs
         :param level: log level"""
         try:
             getattr(self.logger, level.lower())(self.with_(*args, **kwargs))
@@ -103,8 +101,6 @@ class Executable:
 
     def run(self, *args: str, **kwargs) -> subprocess.CompletedProcess:
         """Run the command
-        :param args: additional command positional arguments
-        :param kwargs: additional command kwargs
         :return: run result"""
         kwargs.setdefault('errors', 'replace')
         kwargs.setdefault('capture_output', True)
@@ -114,11 +110,12 @@ class Executable:
             self.show(*args, level=kwargs.pop('show_cmd_level', 'debug'))
         return subprocess.run(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
-    def stream(self, *args: str, **kwargs):
+    def stream(self, *args: str, **kwargs) -> None:
         """Run the command, streaming output to logger
-        :param args: additional command positional arguments
-        :param kwargs: additional command kwargs"""
+        """
         kwargs.setdefault('logger', self.logger)
         if kwargs.pop('show_cmd', True):
             self.show(*args, level=kwargs.pop('show_cmd_level', 'warning'))
+        if kwargs.pop('mode', '') == 'dry-run':
+            return
         subprocess_stream(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
