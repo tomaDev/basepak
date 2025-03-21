@@ -108,6 +108,8 @@ class Executable:
         kwargs.setdefault('shell', True)
         if kwargs.pop('show_cmd', True):
             self.show(*args, level=kwargs.pop('show_cmd_level', 'debug'))
+        if kwargs.pop('mode', '') == 'dry-run':
+            return subprocess.CompletedProcess([], 0)
         return subprocess.run(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
     def stream(self, *args: str, **kwargs) -> None:
