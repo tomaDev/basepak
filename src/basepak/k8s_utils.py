@@ -1,12 +1,4 @@
-"""Functions for creating and managing k8s resources
-
-Intended job flow
-1. Ensure namespace
-2. Ensure PVC (including creating PV if needed)
-3. Create job
-4. Redact saved job manifest yaml
-5. Await job completion (can be separated out to Task validate phase)
-"""
+"""Functions for creating and managing k8s resources"""
 from __future__ import annotations
 
 import functools
@@ -15,18 +7,33 @@ import logging
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Mapping, Union
 
 from . import consts, log, time
 from .execute import Executable, subprocess_stream
 from .versioning import Version
+
+PathLike = Union[Path, str]
+
+
+def md5sum(path: PathLike, chunk_size: int = 8192) -> str:
+    """Compute the MD5 checksum of a file, returning a 32‑character hex string.
+    """
+    import hashlib
+
+    hasher = hashlib.md5()
+    with Path(path).open('rb') as f:
+        for chunk in iter(lambda: f.read(chunk_size), b''):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
 
 DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
 
 
-def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str = 'dry-run') -> None:
+def kubectl_dump(command: PathLike | Executable, output_file: PathLike, mode: str = 'dry-run') -> None:
     """Runs kubectl command and saves output to file
 
     :param command: kubectl command to run
@@ -42,49 +49,253 @@ def kubectl_dump(command: str | Executable, output_file: str | Path, mode: str =
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     error_file = f'{output_file}.err'
     subprocess_stream(command, output_file=output_file, error_file=error_file)
+
+    logger.warning(Path(error_file).read_text())
+
     if os.path.getsize(error_file) == 0:
         os.remove(error_file)
 
 
-def kubectl_upload(remote: str, source_path: str | Path, target_path: str | Path, mode: str = 'dry-run') -> None:
-    """Upload input file to remote using kubectl exec
+def _parse_remote_path(_str: PathLike) -> tuple[str, str]:
+    """Parse remote path into host and path parts"""
+    remote_path = str(_str)
+    if not remote_path:
+        raise ValueError('Empty string received')
+    cnt = remote_path.count(':')
+    if cnt == 0:
+        return remote_path, ''
+    if cnt > 1:
+        raise ValueError(f'Invalid remote path: {remote_path}')
+    remote_part, path_part = remote_path.split(':')
+    path_split = path_part.split()
+    if len(path_split) == 0:
+        return remote_part, ''
+    if len(path_split) == 1:
+        return remote_part, path_part
+    return remote_part + ' ' + ' '.join(path_split[1:]), path_split[0]
 
-    End result is the equivalent of:
 
-    `kubectl exec -i remote -- sh -c 'cat > source_path' < source_path`
+def kubectl_cp(
+        src: PathLike,
+        dest: PathLike,
+        err_file: Optional[PathLike] = None,
+        mode: Optional[str] = 'dry-run',
+        show_cmd=True,
+        logger: Optional[logging.Logger] = None,
+) -> None:
+    """Alternative to `kubectl cp`, due to BKP-30. Main departures from `kubectl cp`:
 
-    Example with values:
+    1. Portability: `kubectl cp` uses `tar` under the hood for any src/dest. For single file transfers, we stream
+       directly to the target, thus dropping the need for `tar`. For dir transfers we use the `tar` on source host to
+       stream it to the target as a file. We then extract it with the `tar` on the target host. This is done to reduce
+       `tar` version compatibility issues across hosts. The tradeoffs are that it takes x2 longer and requires x2 the
+       space on the target host.
+    2. Functionality: `kubectl cp` does not support remote-to-remote transfers. We do, by downloading to local host first.
+       Local host must have space to store x2 the content size
 
-    kubectl exec -i --namespace tests --container c1  deployments/tests -- sh -c 'cat > /tmp/x.log' < /user/some.log
-
-    The aim here is to avoid using `kubectl cp` due to BKP-30
-
-    :param remote: remote to upload to using kubectl exec
-    :param source_path: file to upload (its contents are piped into the command)
-    :param target_path: target file on the remote
+    :param src: source path. Can be local or remote
+    :param dest: target path. Can be local or remote
+    :param err_file: optional error file to write the error stream
     :param mode: execution mode. 'dry-run' only shows command, any other mode executes
+    :param show_cmd: if True, logs the commands that are executed
+    :param logger: logger object
     """
-    logger = log.get_logger(name='plain')
-    if not os.path.exists(source_path):
-        logger.error(f'{source_path} does not exist')
-        raise FileNotFoundError(f'{source_path} does not exist')
 
-    if os.path.getsize(source_path) == 0:
-        logger.warning(f'{source_path} has no content!')
-        return
+    up_src = dl_src = str(src)
+    up_dest = dl_dest = str(dest)
 
-    kubectl = Executable('uploader', 'kubectl exec -i', remote, f"-- sh -c 'cat > {target_path}'" )
-    logger.info(f'{kubectl} < {source_path}')
+
+    logger = logger or log.get_logger(name='plain')
+
+    is_download = ':' in str(src)
+    is_upload = ':' in str(dest)
+    if not (is_download or is_upload):
+        import inspect
+        banner = ('Char ":" not found in either source or dest, suggesting they are both local paths. '
+                  f'For local file transfer, please avoid using {inspect.currentframe().f_code.co_name}')
+        logger.warning(banner)
+        raise ValueError(banner) # implementing this is trivial, but encourages bad boundaries, so we error out instead
+
+    if is_download and is_upload:
+        import tempfile
+        dl_dest = up_src = tempfile.mktemp()
+        logger.warning('Both source and target are remote. Downloading to local host first, and uploading from there')
+
+    if is_download:
+        _download(dl_src, dl_dest, str(err_file or f'{dl_dest}.err'), mode=mode, show_=show_cmd, logger=logger)
+    if is_upload:
+        err_file = str(err_file or f'{up_src}.err')
+        _upload(up_src, up_dest, str(err_file or f'{up_src}.err'), mode=mode, show_=show_cmd, logger=logger)
+
+
+def _download(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger,
+              flags: Mapping[str, str] = None) -> None:
+    """Download a file or directory from remote using kubectl exec.
+
+    For a file, this is equivalent to:
+      kubectl exec host -- dd if={source_path} > {target_path}
+
+    For a directory (when is_dir=True), this is similar* to:
+      kubectl exec host -- tar cf - {source_path} | tar xf - -C {target_path}
+
+    (*) The actual command is more complex to allow some safety checks and error handling
+
+    :param flags: extra flags to pass
+    :param src: remote path to download from. Consists of host:source_path
+    :param dest: local file path (if a file) or directory (if a directory download)
+    :param mode: 'dry-run' only shows command; any other mode executes
+    :param err_file: file to write error output
+    :param show_: if True, logs the command that is executed
+    """
+    remote, s_path = _parse_remote_path(src)
+
+    kubectl = Executable('kubectl', 'kubectl exec', remote, '--')
+    source_path_size = kubectl.run('du -sh', s_path, check=False)
+    if source_path_size.returncode:
+        logger.error(source_path_size.stderr)
+        raise RuntimeError(source_path_size.stderr)
+
+
+    is_dir = kubectl.run('test -d', s_path, check=False).returncode == 0
+    is_file = kubectl.run('test -f', s_path, check=False).returncode == 0
+
+    if not is_dir or is_file:
+        logger.warning(f'Source path: {s_path}')
+        s_type = 'not a dir, file or pipe' if kubectl.run('test -p', s_path, check=False).returncode else 'a pipe'
+        logger.warning(f'Source path is {s_type}. Treating as file')
+
+    from .units import Unit
+    import psutil
+
+    needed_space =  Unit(source_path_size.stdout.split()[0]) * (2 if is_dir else 1)
+    available_disk = Unit(f'{psutil.disk_usage(os.path.dirname(dest)).free} B')
+
+    if needed_space > available_disk:
+        banner = f'Insufficient space on local host\n{needed_space=} > {available_disk=}'
+        logger.error(banner)
+        raise RuntimeError(banner)
+
+    flags = flags or {}
+    kubectl.set_args((flags.get('read_file', 'dd if={path}')).format(path=s_path))
+    if is_dir:
+        kubectl.set_args(flags.get('read_dir', 'tar cf - {path}').format(path=s_path))
+    if show_:
+        logger.info(f'{kubectl} ' + f'| tar xf - -C {dest}' if is_dir else f'> {dest}')
 
     if mode == 'dry-run':
         return
 
-    error_file = f'{source_path}.err'
-    with open(str(source_path), 'rb') as f_in:
-        subprocess_stream(str(kubectl), stdin=f_in, error_file=error_file)
+    output_file = dest + '.tar' if is_dir else dest
+    subprocess_stream(str(kubectl), output_file=output_file, error_file=err_file)
 
-    if os.path.exists(error_file) and os.path.getsize(error_file) == 0:
-        os.remove(error_file)
+    if os.path.exists(err_file):
+        logger.error(Path(err_file).read_text())
+        if os.path.getsize(err_file) == 0:
+            os.remove(err_file)
+
+    remote_checksum = kubectl.run('| md5sum', show_cmd=False).stdout.split()[0]
+    local_checksum = md5sum(output_file)
+
+    logger.info(f' Local md5sum: {local_checksum}')
+    logger.info(f'Remote md5sum: {remote_checksum}')
+
+    if local_checksum != remote_checksum:
+        banner = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
+        logger.error(banner)
+        raise RuntimeError(banner)
+
+    if is_dir:
+        import shutil
+        shutil.unpack_archive(output_file, dest)
+        os.remove(output_file)
+
+
+def _upload(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger) -> None:
+    """Upload to remote using kubectl exec
+
+    End result is the equivalent of:
+
+    `kubectl exec -i remote -- sh -c 'dd of=source_path' < source_path`
+
+    Example with values:
+
+    `kubectl exec -i --namespace tests --container c1  deployments/tests -- dd of=/tmp/x.log < /user/some.log`
+
+    :param show_: log the upload command that is executed
+    :param src: file to upload (its contents are piped into the command)
+    :param dest: remote path to download from. Consists of host:target_path
+    :param mode: execution mode. 'dry-run' only shows command, any other mode executes
+    :param err_file: error file to write the error stream
+    """
+    remote, t_path = _parse_remote_path(dest)
+
+    source_exists = os.path.exists(src)
+    if not source_exists and mode != 'dry-run':
+        logger.error(f'FileNotFound: {src}')
+        raise FileNotFoundError(f'{src} does not exist')
+
+    if source_exists and os.path.getsize(src) == 0:
+        logger.warning(f'{src} is empty! Skipping upload')
+        return
+
+    if source_exists and os.path.isdir(src):
+        return _upload_dir(src, t_path, err_file, remote, mode, show_, logger)
+
+    command = f'kubectl exec -i {remote} -- dd conv=fsync of={t_path}'
+    if show_:
+        logger.info(command + f' < {src}')
+
+    if mode == 'dry-run':
+        return
+
+    with Path(src).open('rb') as f_in:
+        subprocess_stream(command, stdin=f_in, error_file=err_file)
+
+    logger.warning(Path(err_file).read_text())
+    if os.path.getsize(err_file) == 0:
+        os.remove(err_file)
+
+    local_checksum = md5sum(src)
+    remote_checksum = Executable('exec_', 'kubectl exec', remote, '-- md5sum').run(t_path).stdout.split()[0]
+    if local_checksum != remote_checksum:
+        banner = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
+        logger.error(banner)
+        raise RuntimeError(banner)
+
+
+def _upload_dir(src: str, dest: str, err_file: str, remote: str, mode: str, show_: bool, logger: logging.Logger) -> None:
+    exec_ = Executable('exec_', 'kubectl exec', remote, '--')
+    target_dir = os.path.dirname(dest)
+    ls_ = exec_.run('ls', target_dir).stdout.split()
+
+    upload_path = dest + next(f'-{i}.tar' for i in range(1, 999) if f'{os.path.basename(dest)}-{i}.tar' not in ls_)
+    command = f'kubectl exec -i {remote} -- dd conv=fsync of={upload_path}'
+    local_tar_cmd = f'tar cf - -C {os.path.dirname(src)} {os.path.basename(src)}'
+
+    if show_:
+        logger.info(f'{local_tar_cmd} | {command}')
+
+    if mode == 'dry-run':
+        return
+
+    archiver = Executable('archiver', local_tar_cmd)
+    resp = archiver.run('|', command, check=False)
+    logger.info(resp.stdout)
+    logger.info(resp.stderr)
+    if resp.returncode:
+        raise RuntimeError(resp.stderr)
+
+    remote_checksum = exec_.run('md5sum', upload_path).stdout.split()[0]
+    local_checksum = archiver.run(' | md5sum').stdout.split()[0]
+
+    exec_.stream('tar xf', upload_path, '-C', target_dir, error_file=err_file)
+    logger.info(Path(err_file).read_text())
+    os.remove(err_file)
+    if local_checksum != remote_checksum:
+        banner = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
+        logger.error(banner)
+        raise RuntimeError(banner)
+
 
 
 def print_namespace_events(namespace: str) -> None:
@@ -214,7 +425,7 @@ def get_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str)
 
 
 def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None,
-                     file: Optional[str | Path] = None) -> str:
+                     file: Optional[PathLike] = None) -> str:
     """Ensure namespace exists in k8s, create if not present
     :param mode: execution mode
     :param logger: logger object
@@ -327,6 +538,15 @@ def create_oneliner_job(
         mode: Optional[str] = 'normal', redact: Optional[Sequence[str]] = None, completion_tail: Optional[int] = None
 ) -> str:
     """Create a k8s job that runs a single command
+
+    \b
+    Intended job flow
+    1. Ensure namespace
+    2. Ensure PVC (including creating PV if needed)
+    3. Create job
+    4. Redact saved job manifest yaml
+    5. Await job completion (can be separated out to Task validate phase)
+
     :param spec: dict with job parameters
     :param command: command to run in the job
     :param container_name: container name
