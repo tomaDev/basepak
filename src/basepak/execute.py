@@ -111,7 +111,8 @@ class Executable:
         return subprocess.run(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
     def stream(self, *args: str, **kwargs) -> None:
-        """Run the command, streaming output to logger"""
+        """Run the command, streaming output to logger
+        """
         kwargs.setdefault('logger', self.logger)
         if kwargs.pop('show_cmd', True):
             self.show(*args, level=kwargs.pop('show_cmd_level', 'warning'))
