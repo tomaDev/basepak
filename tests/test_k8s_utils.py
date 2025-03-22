@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import contextmanager
 
 import subprocess
 from unittest.mock import patch, MagicMock
@@ -11,13 +12,13 @@ from basepak.versioning import Version
 
 SUPPORTED_MODES = ['dry-run', 'normal', 'unsafe']
 
-pv_template = """
+PV_TEMPLATE = """
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   labels:
     created-by: pytest
-  name: basepak-test
+  name: {name}
 spec:
   accessModes:
   - ReadWriteMany
@@ -41,6 +42,26 @@ spec:
   storageClassName: basepak-test
   volumeMode: Filesystem
 """
+
+def _get_fresh_resource_name(resource_type: str, label: str = '') -> str:
+    resp = subprocess.run(f'kubectl get {resource_type} --output name', shell=True, capture_output=True)
+    prefix = f'basepak-{label}-{resource_type}'
+    return next(f'{prefix}-{i}' for i in range(999) if f'{prefix}-{i}' not in resp.stdout.decode())
+
+@contextmanager
+def _fresh_pod(pod_name):
+    subprocess.check_call(['kubectl', 'run', pod_name, '--image=busybox:stable', '--restart=Never', '--command', '--',
+                           'sleep', 'infinity',])
+    try:
+        subprocess.check_call(['kubectl', 'wait', '--for=condition=Ready', f'pod/{pod_name}', '--timeout=60s'])
+    except subprocess.CalledProcessError:
+        subprocess.call(['kubectl', 'delete', 'pod', pod_name])
+        raise
+    try:
+        yield pod_name
+    finally:
+        subprocess.run(f'kubectl delete pod {pod_name} --ignore-not-found --wait=false', shell=True)
+
 
 @pytest.mark.parametrize(
     "mock_partitions,test_path,expected,raises_error", [
@@ -78,10 +99,8 @@ def test_is_path_local_best_effort(mock_partitions, test_path, expected, raises_
 def test_is_path_local(test_path, expected):
     assert k8s_utils.is_path_local(test_path) is expected
 
-
 def test_get_kubectl_version():
-    out = k8s_utils.get_kubectl_version()
-    assert isinstance(out, Version)
+    assert isinstance(k8s_utils.get_kubectl_version(), Version)
 
 def test_kubectl_dump(tmp_path):
     tmp_file = tmp_path / 'tmp.yaml'
@@ -91,7 +110,7 @@ def test_kubectl_dump(tmp_path):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_namespace(mode):
-    ns = _get_fresh_namespace()
+    ns = _get_fresh_resource_name('ns', mode)
 
     # create
     result = k8s_utils.ensure_namespace(mode, logging.getLogger(), namespace=ns)
@@ -114,7 +133,7 @@ def test_ensure_pvc(tmp_path, mode):
         'GENERATED_MANIFESTS_FOLDER': str(tmp_path),
     }
 
-    ns = spec['NAMESPACE'] = _get_fresh_namespace()
+    ns = spec['NAMESPACE'] = _get_fresh_resource_name('ns', mode)
 
     # create
     k8s_utils.ensure_pvc(spec, logging.getLogger())
@@ -128,7 +147,8 @@ def test_ensure_pvc(tmp_path, mode):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_pvc_bind(tmp_path, mode):
-    assert subprocess.run('kubectl create -f -', input=pv_template.encode(), shell=True).returncode == 0
+    pv_name = _get_fresh_resource_name('pv', mode)
+    subprocess.run('kubectl create -f -', input=PV_TEMPLATE.format(name=pv_name).encode(), shell=True)
     spec = {
         'MODE': mode,
         'PERSISTENT_VOLUME_CLAIM_NAME': 'test-pvc',
@@ -137,7 +157,7 @@ def test_ensure_pvc_bind(tmp_path, mode):
         'STORAGE_CLASS': 'basepak-test',
     }
 
-    ns = spec['NAMESPACE'] = _get_fresh_namespace()
+    ns = spec['NAMESPACE'] = _get_fresh_resource_name('ns', mode)
 
     # create
     k8s_utils.ensure_pvc(spec, logging.getLogger())
@@ -147,45 +167,17 @@ def test_ensure_pvc_bind(tmp_path, mode):
 
     # teardown
     subprocess.run(f'kubectl delete namespace {ns} --wait=false --ignore-not-found', shell=True)
-    subprocess.run('kubectl delete -f -', input=pv_template.encode(), shell=True)
-
-
-def _get_fresh_namespace():
-    resp = subprocess.run('kubectl get namespace', shell=True, capture_output=True)
-    ns = 'basepak-test'
-    return next(f'{ns}-{i}' for i in range(100) if f'{ns}-{i}' not in resp.stdout.decode())
-
-
-def _get_fresh_pod_name():
-    resp = subprocess.run('kubectl get pod --output name', shell=True, capture_output=True)
-    prefix = 'basepak-pod'
-    return next(f'{prefix}-{i}' for i in range(999) if f'{prefix}-{i}' not in resp.stdout.decode())
-
-from contextlib import contextmanager
-
-@contextmanager
-def fresh_pod(pod_name):
-    subprocess.check_call(['kubectl', 'run', pod_name, '--image=busybox:stable', '--restart=Never', '--command', '--',
-                           'sleep', 'infinity',])
-    try:
-        subprocess.check_call(['kubectl', 'wait', '--for=condition=Ready', f'pod/{pod_name}', '--timeout=60s'])
-    except subprocess.CalledProcessError:
-        subprocess.call(['kubectl', 'delete', 'pod', pod_name])
-        raise
-    try:
-        yield pod_name
-    finally:
-        subprocess.run(f'kubectl delete pod {pod_name} --ignore-not-found --wait=false', shell=True)
+    subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True)
 
 def test_kubectl_upload_file_dry_run(tmp_path):
-    with fresh_pod(_get_fresh_pod_name()) as pod:
+    with _fresh_pod(_get_fresh_resource_name('pod', 'upload-file-dry-run')) as pod:
         tmp_file = tmp_path / 'file.yaml'
         tmp_file.write_text('test content')
 
         k8s_utils.kubectl_cp(src=tmp_file, dest=f'{pod}:/tmp/file.yaml', mode='dry-run', retries=1)
 
 def test_kubectl_upload_dir_dry_run(tmp_path):
-    with fresh_pod(_get_fresh_pod_name()) as pod:
+    with _fresh_pod(_get_fresh_resource_name('pod', 'upload-dir-dry-run')) as pod:
         tmp_dir = tmp_path / 'temporary'
         tmp_dir.mkdir()
         tmp_file = tmp_dir / 'file.yaml'
@@ -195,7 +187,7 @@ def test_kubectl_upload_dir_dry_run(tmp_path):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_file(tmp_path, mode):
-    with fresh_pod(_get_fresh_pod_name()) as pod:
+    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod:
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('test content')
 
@@ -208,7 +200,7 @@ def test_kubectl_upload_download_file(tmp_path, mode):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
-    with fresh_pod(_get_fresh_pod_name()) as pod:
+    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod:
         remote_path = f'{pod}:/tmp/dir'
         local_dir = tmp_path / 'dir'
         local_dir.mkdir()
@@ -224,7 +216,7 @@ def test_kubectl_upload_download_dir(tmp_path, mode):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
-    with fresh_pod(_get_fresh_pod_name()) as pod1, fresh_pod(_get_fresh_pod_name()) as pod2:
+    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod1, _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod2:
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('a' * 100_000_000)
 
