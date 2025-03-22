@@ -163,19 +163,20 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.warning(f'Source path is {s_type}. Treating as file')
 
     from .units import Unit
-    import psutil
+    import shutil
 
-    needed_space =  Unit(source_path_size.stdout.split()[0]) * (2 if is_dir else 1)
-    available_disk = Unit(f'{psutil.disk_usage(os.path.dirname(dest)).free} B')
+    dest_dir = os.path.dirname(dest)
+    needed_disk =  Unit(source_path_size.stdout.split()[0]) * (2 if is_dir else 1)
+    available_disk = Unit(f'{shutil.disk_usage(dest_dir).free} B')
 
-    if needed_space > available_disk:
-        msg = f'Insufficient space on local host\n{needed_space=} > {available_disk=}'
+    if needed_disk > available_disk:
+        msg = f'Insufficient space on local host\n{needed_disk=} > {available_disk=}'
         logger.error(msg)
         raise OSError(msg)
 
     kubectl.set_args('cat' if not is_dir else f'tar -C {os.path.dirname(s_path)} -cf - {os.path.basename(s_path)}')
     if show_:
-        logger.info(f'{kubectl} ' + f'| tar xf - -C {dest}' if is_dir else f'> {dest}')
+        logger.info(f'{kubectl} ' + f'| tar xf - -C {dest_dir}' if is_dir else f'> {dest}')
 
     if mode == 'dry-run':
         return
@@ -196,8 +197,7 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 logger.error(msg)
                 raise RuntimeError(msg)
             if is_dir:
-                import shutil
-                shutil.unpack_archive(output_file, dest)
+                shutil.unpack_archive(output_file, dest_dir)
                 os.remove(output_file)
             break
         except Exception: # noqa
@@ -325,13 +325,9 @@ def print_namespace_events(namespace: str) -> None:
 
 @functools.lru_cache
 def get_kubectl_version() -> Version:
-    """Get kubectl version
-
-    :return: kubectl version as a Version object"""
-    kubectl = Executable('kubectl')
-    result = kubectl.run('version --client --output json')
-    kubectl_version = json.loads(result.stdout)['clientVersion']['gitVersion'][1:]  # strip 'v' prefix
-    return Version(kubectl_version)
+    """:return: kubectl version as a Version object"""
+    result = Executable('kubectl').run('version --client --output json')
+    return Version(json.loads(result.stdout)['clientVersion']['gitVersion'][1:])  # strip 'v' prefix
 
 
 def get_k8s_service_port(service_name: str, port_name: str, namespace: Optional[str] = 'default-tenant') -> str:

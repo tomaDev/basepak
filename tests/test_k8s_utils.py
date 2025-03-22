@@ -49,11 +49,16 @@ def _get_fresh_resource_name(resource_type: str, label: str = '') -> str:
     return next(f'{prefix}-{i}' for i in range(999) if f'{prefix}-{i}' not in resp.stdout.decode())
 
 @contextmanager
-def _fresh_pod(pod_name):
-    subprocess.check_call(['kubectl', 'run', pod_name, '--image=busybox:stable', '--restart=Never', '--command', '--',
-                           'sleep', 'infinity',])
+def _fresh_pod():
+    pod_name = _get_fresh_resource_name('pod')
+
+    while 'AlreadyExists' in subprocess.run(
+            f'kubectl run {pod_name} --image=busybox:stable --restart=Never --command -- sleep 60',
+            shell=True, check=False, capture_output=True
+    ).stderr.decode():
+        pod_name = _get_fresh_resource_name('pod')
     try:
-        subprocess.check_call(['kubectl', 'wait', '--for=condition=Ready', f'pod/{pod_name}', '--timeout=60s'])
+        subprocess.check_call(['kubectl', 'wait', '--for=condition=Ready', f'pod/{pod_name}', '--timeout=30s'])
     except subprocess.CalledProcessError:
         subprocess.call(['kubectl', 'delete', 'pod', pod_name])
         raise
@@ -61,52 +66,6 @@ def _fresh_pod(pod_name):
         yield pod_name
     finally:
         subprocess.run(f'kubectl delete pod {pod_name} --ignore-not-found --wait=false', shell=True)
-
-
-@pytest.mark.parametrize(
-    "mock_partitions,test_path,expected,raises_error", [
-        ([MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/home/user/file.txt', True, None),
-        ([MagicMock(mountpoint='/', fstype='xfs', device='/dev/sdb2')], '/var/log/messages', True, None),
-        ([MagicMock(mountpoint='/mnt/remote_share', fstype='nfs', device='server:/export/path'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/remote_share/data', False, None),
-        ([MagicMock(mountpoint='/mnt/windows_share', fstype='cifs', device='//server/share'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/windows_share/file.docx', False, None),
-        ([MagicMock(mountpoint='/mnt/ssh_access', fstype='fuse.sshfs', device='host:/remote_path'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/ssh_access/data', False, None),
-        ([MagicMock(mountpoint='/mnt/s3', fstype='fuse.s3fs', device='s3.amazonaws.com:/mybucket'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/s3/documents/report.pdf', False, None),
-        ([MagicMock(mountpoint='/mnt/gluster_volume', fstype='glusterfs', device='gluster-node1:/gv0'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/gluster_volume/data', False, None),
-        ([MagicMock(mountpoint='/mnt/cephfs', fstype='ceph', device='mon1,mon2,mon3:/'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False, None),
-    ]
-)
-def test_is_path_local_best_effort(mock_partitions, test_path, expected, raises_error):
-    with patch('psutil.disk_partitions', return_value=mock_partitions):
-        if raises_error:
-            with pytest.raises(raises_error):
-                k8s_utils.is_path_local_best_effort(test_path)
-        else:
-            assert k8s_utils.is_path_local_best_effort(test_path) is expected
-
-@pytest.mark.parametrize(
-    'test_path,expected', [
-        ('/', True),
-        ('/users', True),
-        ('/users/non-existent-user', False),
-        ('/nonexistent-mount', False),
-])
-def test_is_path_local(test_path, expected):
-    assert k8s_utils.is_path_local(test_path) is expected
-
-def test_get_kubectl_version():
-    assert isinstance(k8s_utils.get_kubectl_version(), Version)
-
-def test_kubectl_dump(tmp_path):
-    tmp_file = tmp_path / 'tmp.yaml'
-    k8s_utils.kubectl_dump('kubectl version --client', tmp_file, mode='unsafe')
-    assert tmp_file.exists()
-    assert tmp_file.read_text()
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_namespace(mode):
@@ -169,15 +128,41 @@ def test_ensure_pvc_bind(tmp_path, mode):
     subprocess.run(f'kubectl delete namespace {ns} --wait=false --ignore-not-found', shell=True)
     subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True)
 
+@pytest.mark.parametrize(
+    "mock_partitions,test_path,expected,raises_error", [
+        ([MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/home/user/file.txt', True, None),
+        ([MagicMock(mountpoint='/', fstype='xfs', device='/dev/sdb2')], '/var/log/messages', True, None),
+        ([MagicMock(mountpoint='/mnt/remote_share', fstype='nfs', device='server:/export/path'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/remote_share/data', False, None),
+        ([MagicMock(mountpoint='/mnt/windows_share', fstype='cifs', device='//server/share'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/windows_share/file.docx', False, None),
+        ([MagicMock(mountpoint='/mnt/ssh_access', fstype='fuse.sshfs', device='host:/remote_path'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/ssh_access/data', False, None),
+        ([MagicMock(mountpoint='/mnt/s3', fstype='fuse.s3fs', device='s3.amazonaws.com:/mybucket'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/s3/documents/report.pdf', False, None),
+        ([MagicMock(mountpoint='/mnt/gluster_volume', fstype='glusterfs', device='gluster-node1:/gv0'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/gluster_volume/data', False, None),
+        ([MagicMock(mountpoint='/mnt/cephfs', fstype='ceph', device='mon1,mon2,mon3:/'),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False, None),
+    ]
+)
+def test_is_path_local_best_effort(mock_partitions, test_path, expected, raises_error):
+    with patch('psutil.disk_partitions', return_value=mock_partitions):
+        if raises_error:
+            with pytest.raises(raises_error):
+                k8s_utils.is_path_local_best_effort(test_path)
+        else:
+            assert k8s_utils.is_path_local_best_effort(test_path) is expected
+
 def test_kubectl_upload_file_dry_run(tmp_path):
-    with _fresh_pod(_get_fresh_resource_name('pod', 'upload-file-dry-run')) as pod:
+    with _fresh_pod() as pod:
         tmp_file = tmp_path / 'file.yaml'
         tmp_file.write_text('test content')
 
         k8s_utils.kubectl_cp(src=tmp_file, dest=f'{pod}:/tmp/file.yaml', mode='dry-run', retries=1)
 
 def test_kubectl_upload_dir_dry_run(tmp_path):
-    with _fresh_pod(_get_fresh_resource_name('pod', 'upload-dir-dry-run')) as pod:
+    with _fresh_pod() as pod:
         tmp_dir = tmp_path / 'temporary'
         tmp_dir.mkdir()
         tmp_file = tmp_dir / 'file.yaml'
@@ -187,7 +172,7 @@ def test_kubectl_upload_dir_dry_run(tmp_path):
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_file(tmp_path, mode):
-    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod:
+    with _fresh_pod() as pod:
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('test content')
 
@@ -198,9 +183,22 @@ def test_kubectl_upload_download_file(tmp_path, mode):
 
         k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode, retries=1)
 
+@pytest.mark.parametrize(
+    'test_path,expected', [
+        ('/', True),
+        ('/users', True),
+        ('/users/non-existent-user', False),
+        ('/nonexistent-mount', False),
+    ])
+def test_is_path_local(test_path, expected):
+    assert k8s_utils.is_path_local(test_path) is expected
+
+def test_get_kubectl_version():
+    assert isinstance(k8s_utils.get_kubectl_version(), Version)
+
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
-    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod:
+    with _fresh_pod() as pod:
         remote_path = f'{pod}:/tmp/dir'
         local_dir = tmp_path / 'dir'
         local_dir.mkdir()
@@ -214,9 +212,15 @@ def test_kubectl_upload_download_dir(tmp_path, mode):
 
         k8s_utils.kubectl_cp(dest=local_dir, src=remote_path, mode=mode, retries=1)
 
+def test_kubectl_dump(tmp_path):
+    tmp_file = tmp_path / 'tmp.yaml'
+    k8s_utils.kubectl_dump('kubectl version --client', tmp_file, mode='unsafe')
+    assert tmp_file.exists()
+    assert tmp_file.read_text()
+
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
-    with _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod1, _fresh_pod(_get_fresh_resource_name('pod', mode)) as pod2:
+    with _fresh_pod() as pod1, _fresh_pod() as pod2:
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('a' * 100_000_000)
 
