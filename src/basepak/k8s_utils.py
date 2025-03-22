@@ -173,7 +173,7 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.error(msg)
         raise OSError(msg)
 
-    kubectl.set_args( 'cat' if not is_dir else 'tar cf -', s_path)
+    kubectl.set_args('cat' if not is_dir else f'tar -C {os.path.dirname(s_path)} -cf - {os.path.basename(s_path)}')
     if show_:
         logger.info(f'{kubectl} ' + f'| tar xf - -C {dest}' if is_dir else f'> {dest}')
 
@@ -195,20 +195,23 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
                 logger.error(msg)
                 raise RuntimeError(msg)
+            if is_dir:
+                import shutil
+                shutil.unpack_archive(output_file, dest)
+                os.remove(output_file)
             break
         except Exception: # noqa
-            msg = Path(err_file).read_text()
-            logger.error(msg)
-            os.remove(output_file)
-            os.remove(err_file)
+            msg = f'Failed to download {src} to {dest}!'
+            if os.path.exists(err_file):
+                msg = Path(err_file).read_text()
+                logger.error(msg)
+                os.remove(err_file)
+            if os.path.exists(output_file):
+                os.remove(output_file)
             if retries == 0:
                 raise RuntimeError(msg)
             retries -= 1
             time.sleep(10)
-    if is_dir:
-        import shutil
-        shutil.unpack_archive(output_file, dest)
-        os.remove(output_file)
 
 
 def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
@@ -216,7 +219,7 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
 
     End result is the equivalent of:
 
-    `kubectl exec -i remote -- sh -c 'cat > source_path' < source_path`
+    `kubectl exec -i remote -- sh -c 'cat > dest' < src`
 
     Example with values:
 
@@ -287,6 +290,10 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
                 logger.error(msg)
                 raise RuntimeError(msg)
+            if os.path.exists(err_file):
+                logger.warning(Path(err_file).read_text())
+                if os.path.getsize(err_file) == 0:
+                    os.remove(err_file)
             break
         except Exception: # noqa
             if msg := Path(err_file).read_text():
@@ -298,10 +305,6 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
             retries -= 1
             time.sleep(10)
 
-    if os.path.exists(err_file):
-        logger.warning(Path(err_file).read_text())
-        if os.path.getsize(err_file) == 0:
-            os.remove(err_file)
 
 
 def print_namespace_events(namespace: str) -> None:
