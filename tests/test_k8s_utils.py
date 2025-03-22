@@ -202,8 +202,8 @@ def test_kubectl_upload_download_dir(tmp_path, mode):
         remote_path = f'{pod}:/tmp/dir'
         local_dir = tmp_path / 'dir'
         local_dir.mkdir()
-        for i in range(3):
-            local_dir.joinpath(f'tmp-{i}.yaml').write_text(f'test content {i}')
+        for i in range(100):
+            local_dir.joinpath(f'tmp-{i}.yaml').write_text(f'test content {i}\n' + 'abc' * 10_000)
 
         k8s_utils.kubectl_cp(src=local_dir, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode, retries=1)
 
