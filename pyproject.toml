@@ -31,7 +31,6 @@ classifiers = [
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
-    'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: Implementation :: CPython',
     'Programming Language :: Python :: Implementation :: PyPy',
 ]
@@ -56,9 +55,10 @@ release = 'VERSION="$(hatch version)"; git tag $VERSION && git push origin $VERS
 
 [tool.hatch.envs.hatch-test]
 dependencies = [
-    "pytest>=8.3.3",
-    "coverage",
-    "pytest-cov",
+    'pytest>=8.3.3',
+    'coverage',
+    'pytest-cov',
+    'pytest-xdist',
 ]
 install_project = true
 
@@ -93,7 +93,7 @@ skips = [
 scan = 'bandit --recursive src/basepak --configfile pyproject.toml'
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ['3.9', '3.10', '3.11', '3.12']
 
 [tool.coverage.run]
 branch = true
