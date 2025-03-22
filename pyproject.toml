@@ -58,9 +58,10 @@ dependencies = [
     'pytest>=8.3.3',
     'coverage',
     'pytest-cov',
-    'pytest-xdist',
 ]
 install_project = true
+randomize = true
+parallel = true
 
 [tool.hatch.envs.scan]
 dependencies = [
