@@ -12,9 +12,9 @@ from basepak.log import (
     get_logger,
     log_as,
     name_to_handler,
-    redact_str,
-    redact_file,
     print_table,
+    redact_file,
+    redact_str,
 )
 
 REDACTION_TEST_DATA = [
@@ -205,7 +205,7 @@ password plainvalue
     redact_file(file_path)  # uses default keys => includes "password"
 
     # Assert
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         result = f.read()
 
     assert "super_secret" not in result
@@ -228,7 +228,7 @@ user = admin
     keys = ["user"]
     redact_file(file_path, keys=keys)
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         result = f.read()
 
     assert 'root' not in result
@@ -253,7 +253,7 @@ password = my_password
     keys = ["my_key"]
     redact_file(file_path, keys=keys)
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         result = f.read()
 
     # my_key value should be replaced
@@ -274,7 +274,7 @@ def test_redact_file_empty(create_tempfile):
     redact_file(file_path)
 
     # Should still be empty
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         result = f.read()
 
     assert result == ""
@@ -306,13 +306,13 @@ def test_write_log_to_file(tmp_path, monkeypatch):
     log_file_path = str(log_dir / log_file_name)
 
     monkeypatch.setenv("BASEPAK_WRITE_LOG_TO_FILE", "True")
-    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_LOG_FILE", log_file_name)
     monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
 
     logger = get_logger("short", level='debug')
     logger.info("Test message")
 
-    with open(log_file_path, "r", encoding="utf-8") as f:
+    with open(log_file_path, encoding="utf-8") as f:
         content = f.read()
 
     assert "Test message" in content
@@ -340,7 +340,7 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     log_dir = tmp_path / "logs"
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv("BASEPAK_LOG_FILE_NAME", log_file_name)
+    monkeypatch.setenv("BASEPAK_LOG_FILE", log_file_name)
     monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
 
@@ -351,7 +351,7 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     logger2.info("Logger2 message")
     logger3.info("Logger3 message")
 
-    with open(log_file_path, "r", encoding="utf-8") as f:
+    with open(log_file_path, encoding="utf-8") as f:
         content = f.readlines()
     print(content)
 
@@ -374,13 +374,13 @@ def test_write_table_to_file(tmp_path, monkeypatch, _table):
     log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
 
     print_table(_table)
 
-    with open(log_file_path, 'r', encoding='utf-8') as f:
+    with open(log_file_path, encoding='utf-8') as f:
         content = f.read()
 
     # Debug output (can be removed)
@@ -404,7 +404,7 @@ def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
     log_dir = tmp_path / "logs"
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
 
     print_table(_table)
@@ -417,14 +417,14 @@ def test_logger_no_color(tmp_path, monkeypatch):
     log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
     monkeypatch.setenv('NO_COLOR', '1')
 
     logger = get_logger('short')
     logger.info('Test message')
-    with open(log_file_path, 'r', encoding='utf-8') as f:
+    with open(log_file_path, encoding='utf-8') as f:
         content = f.read()
 
     print(content)
@@ -439,14 +439,14 @@ def test_write_table_no_color(tmp_path, monkeypatch, _table):
     log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv('BASEPAK_LOG_FILE_NAME', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
     monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', '1')
     monkeypatch.setenv('NO_COLOR', '1')
 
     print_table(_table)
 
-    with open(log_file_path, 'r', encoding='utf-8') as f:
+    with open(log_file_path, encoding='utf-8') as f:
         content = f.read()
 
     import re

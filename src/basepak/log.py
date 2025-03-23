@@ -5,13 +5,13 @@ import logging
 import os
 import re
 import shutil
-from collections.abc import Mapping
-from functools import partial
+from collections.abc import Mapping, Sequence
+from functools import partial, cache, lru_cache
 from numbers import Number
-from typing import Callable, Optional, AnyStr, Sequence
+from typing import AnyStr, Callable, Optional
 
 import rich
-from rich import theme, table, box, console
+from rich import box, console, table, theme
 from rich.logging import RichHandler
 
 LOGGERS: set[str] = set()
@@ -177,16 +177,12 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
     if not is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
         return logger
 
-    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE_NAME', LOG_FILE_NAME_DEFAULT)
     try:
-        log_path =  os.environ.setdefault('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
         file_console = console.Console(
             width=shutil.get_terminal_size(fallback=(140, 24)).columns,
             force_terminal=not is_yes(os.environ.get('NO_COLOR')),
         )
-        file_console.file = open(log_path, 'a', encoding='utf-8', errors='replace')
+        file_console.file = open(_set_log_path(), 'a', encoding='utf-8', errors='replace')
         file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
         file_handler.addFilter(MaskingFilter())
         logger.addHandler(file_handler)
@@ -195,13 +191,16 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
     return logger
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
-    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE_NAME', LOG_FILE_NAME_DEFAULT)
-    log_path =  os.environ.setdefault('BASEPAK_LOG_PATH', os.path.expanduser('~') + '/' + log_file_name)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, 'a', encoding='utf-8', errors='replace') as f:
+    with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
         w = console.Console(file=f, force_terminal=not is_yes(os.environ.get('NO_COLOR')))
         w.print(table_)
 
+def _set_log_path() -> str:
+    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE', LOG_FILE_NAME_DEFAULT)
+    log_dir = os.environ.setdefault('BASEPAK_LOG_DIR', os.path.expanduser('~'))
+    log_path = os.environ.get('BASEPAK_LOG_PATH') or os.path.join(log_dir, log_file_name)
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    return log_path
 
 def print_table(table_: rich.table.Table) -> None:
     rich.print(table_)
@@ -263,7 +262,7 @@ def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
         patterns[rf'(?i)({key_}\s*=\s*)(\S+)'] = rf'\1{LOG_MASK}'
         patterns[rf'(?i)({key_}\s+)(\S+)'] = rf'\1{LOG_MASK}'
 
-    with open(path, 'r', encoding='utf-8', errors='replace') as f:
+    with open(path, encoding='utf-8', errors='replace') as f:
         content = f.read()
 
     import re

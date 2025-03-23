@@ -140,8 +140,9 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.error(source_path_size.stderr)
         raise RuntimeError(source_path_size.stderr)
 
-    from .units import Unit
     import shutil
+
+    from .units import Unit
 
     dest_dir = os.path.dirname(dest)
     needed_disk =  Unit(source_path_size.stdout.split()[0])
@@ -492,8 +493,8 @@ def create_oneliner_job(
     :param completion_tail: num of lines to print from job logs on completion. Defaults to k8s default
     :return: job name
     """
-    from .templates import batch_job
     from . import strings
+    from .templates import batch_job
 
     logger = log.get_logger(name=spec.get('LOGGER_NAME'), level=spec.get('LOG_LEVEL') or 'INFO')
     ensure_pvc(spec, logger)
@@ -525,7 +526,7 @@ def create_oneliner_job(
     return spec['JOB_NAME']
 
 
-# todo: this function is buggy. It was created because in k8s <=1.21 kubectl errors on many --for conditions.
+# TODO: this function is buggy. It was created because in k8s <=1.21 kubectl errors on many --for conditions.
 #   Now we've dropped support for k8s <v1.24, so this function should be refactored to use kubectl wait
 def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     """Wait for k8s job to complete
@@ -714,7 +715,7 @@ def _get_running_pod_manifest(kubectl: Executable, tries: int, retries: int, msg
     return pod_manifest
 
 
-def is_remote_sharing_disk_with_host(  # todo: create test
+def is_remote_sharing_disk_with_host(  # TODO: create test
         spec: dict,
         local_path: str,
         remote_path: Optional[str] = None,

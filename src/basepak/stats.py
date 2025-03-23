@@ -160,4 +160,4 @@ def _get_load_avg() -> float:
 
 
 def _get_virtual_memory() -> float:
-    return psutil.virtual_memory()._asdict()['percent']  # noqa w0212
+    return psutil.virtual_memory()._asdict()['percent']  # w0212

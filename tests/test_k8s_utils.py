@@ -1,11 +1,11 @@
 from __future__ import annotations
-from contextlib import contextmanager
 
-import subprocess
-from unittest.mock import patch, MagicMock
 import logging
+import subprocess
+from contextlib import contextmanager
+from unittest.mock import MagicMock, patch
 
-import pytest # type: ignore
+import pytest  # type: ignore
 
 from basepak import k8s_utils
 from basepak.versioning import Version
@@ -44,7 +44,7 @@ spec:
 """
 
 def _get_fresh_resource_name(resource_type: str, label: str = '') -> str:
-    resp = subprocess.run(f'kubectl get {resource_type} --output name', shell=True, capture_output=True)
+    resp = subprocess.run(f'kubectl get {resource_type} --output name', shell=True, capture_output=True, check=False)
     prefix = f'basepak-{label}-{resource_type}'
     return next(f'{prefix}-{i}' for i in range(999) if f'{prefix}-{i}' not in resp.stdout.decode())
 
@@ -65,7 +65,7 @@ def _fresh_pod():
     try:
         yield pod_name
     finally:
-        subprocess.run(f'kubectl delete pod {pod_name} --ignore-not-found --wait=false', shell=True)
+        subprocess.run(f'kubectl delete pod {pod_name} --ignore-not-found --wait=false', shell=True, check=False)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_namespace(mode):
@@ -80,7 +80,7 @@ def test_ensure_namespace(mode):
     assert result == ns
 
     # teardown
-    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True).returncode == 0
+    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True, check=False).returncode == 0
 
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
@@ -101,13 +101,13 @@ def test_ensure_pvc(tmp_path, mode):
     k8s_utils.ensure_pvc(spec, logging.getLogger())
 
     # teardown
-    subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found --wait=false', shell=True)
+    subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found --wait=false', shell=True, check=False)
 
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_pvc_bind(tmp_path, mode):
     pv_name = _get_fresh_resource_name('pv', mode)
-    subprocess.run('kubectl create -f -', input=PV_TEMPLATE.format(name=pv_name).encode(), shell=True)
+    subprocess.run('kubectl create -f -', input=PV_TEMPLATE.format(name=pv_name).encode(), shell=True, check=False)
     spec = {
         'MODE': mode,
         'PERSISTENT_VOLUME_CLAIM_NAME': 'test-pvc',
@@ -125,8 +125,8 @@ def test_ensure_pvc_bind(tmp_path, mode):
     k8s_utils.ensure_pvc(spec, logging.getLogger())
 
     # teardown
-    subprocess.run(f'kubectl delete namespace {ns} --wait=false --ignore-not-found', shell=True)
-    subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True)
+    subprocess.run(f'kubectl delete namespace {ns} --wait=false --ignore-not-found', shell=True, check=False)
+    subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True, check=False)
 
 @pytest.mark.parametrize(
     "mock_partitions,test_path,expected,raises_error", [

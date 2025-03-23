@@ -1,6 +1,7 @@
-__version__ = '0.0.39'
+__version__ = '0.0.40'
 
 import os
+
 if os.environ.get('NO_COLOR'):
     import click
 

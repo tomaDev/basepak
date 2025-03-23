@@ -1,9 +1,9 @@
-import ipaddress
 from unittest.mock import MagicMock
 
 import click
 import pytest
-from basepak.units import IPAddress, Range, Ranges, Unit
+
+from basepak.units import Range, Ranges, Unit
 
 
 def test_unit_initialization():
@@ -87,8 +87,8 @@ def test_unit_comparison():
     unit2 = Unit("1024 B")
 
     assert unit1 == unit2
-    assert unit1 >= unit2  # noqa
-    assert unit1 <= unit2  # noqa
+    assert unit1 >= unit2
+    assert unit1 <= unit2
 
     assert unit1 > Unit("512 B")
     assert unit1 < Unit("2 KiB")
@@ -174,13 +174,13 @@ def test_ranges_valid(sep1, sep2, mock_param, mock_ctx):
 
 def test_ranges_range_with_single(mock_param, mock_ctx):
     ranges_type = Ranges()
-    result = ranges_type.convert(f'1-5,6,10', mock_param, mock_ctx)
+    result = ranges_type.convert('1-5,6,10', mock_param, mock_ctx)
     assert result == tuple([range(1, 5), range(6,7), range(10,11)])
 
 def test_ranges_is_cachable():
     from functools import lru_cache
 
-    ranges = Ranges().convert('1-5,6,10', None, None)  # noqa Unexpected type
+    ranges = Ranges().convert('1-5,6,10', None, None)  # Unexpected type
 
     try:
         hash(ranges)
