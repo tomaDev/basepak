@@ -1,4 +1,5 @@
 import os
+
 from basepak import __version__ as package_version
 
 class ConstMeta(type):
