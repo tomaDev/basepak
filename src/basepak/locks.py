@@ -22,13 +22,6 @@ def group_lock(func: Callable) -> Callable:
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
-        if log_writable_commands := ctx.obj.get('log_writable_commands'):
-            command_leaf = ctx.command_path.split()[-1]
-            for command in log_writable_commands:
-                if command_leaf == command:
-                    os.environ.setdefault('BASEPAK_WRITE_LOG_TO_FILE', 'True')
-                    os.environ.setdefault('BASEPAK_LOG_FILE', ctx.command_path.replace(' ', '.') + '.log')
-                    break
 
         logger = log.get_logger(name=kwargs.get('logger_name'), level=kwargs.get('log_level'))
         lock_file_dir = os.path.join('/tmp', ctx.obj.get('cli_name') or 'basepak')  # nosec: B108:hardcoded_tmp_directory
