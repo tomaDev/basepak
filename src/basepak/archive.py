@@ -2,23 +2,7 @@ import logging
 from typing import AnyStr
 
 
-def print_tar_top_level_members(tar_path: AnyStr, logger: logging.Logger) -> None:
-    """Print top level members of a tar file with their sizes in human-readable format
-    :param tar_path: path to tar file"""
-    import tarfile
-    with tarfile.open(tar_path) as tar:
-        for member in tar.getmembers():
-            if member.name.count('/') != 1:
-                continue
-            if member.size == 0:
-                logger.info('dir', member.name.partition('/')[2])
-            else:
-                from .units import Unit
-                member_size = Unit(f'{member.size} B')
-                logger.info(f'{member_size} {member.name.partition("/")[2]}')
-
-
-def extractall(path: AnyStr, mode: str, logger: logging.Logger) -> str:
+def extractall(path: AnyStr, mode: AnyStr, logger: logging.Logger) -> str:
     """Extract tar file to same dir and returns path to extracted dir
     :param path: path to tar file
     :param mode: execution mode
