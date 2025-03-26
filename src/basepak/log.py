@@ -31,6 +31,17 @@ RICH_THEME_KWARGS_DEFAULT = {
     'logging.warning': 'yellow',
     'logging.level.warning': 'bold yellow',
 }
+import sys
+
+def register_exception_hook(logger_name='plain'):
+    def log_uncaught_exceptions(exc_type, exc_value, exc_traceback):
+        logger = get_logger(logger_name)
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        logger.critical("Uncaught Exception:", exc_info=(exc_type, exc_value, exc_traceback))
+
+    sys.excepthook = log_uncaught_exceptions
 
 
 def is_yes(input_: Optional[str | Number]) -> bool:
@@ -157,7 +168,7 @@ def name_to_handler(name: str, *args, **kwargs) -> logging.StreamHandler:
         raise ValueError(f'Unsupported logger name: {name}. Supported names are: {SUPPORTED_LOGGERS.keys()}')
 
 
-def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) -> logging.Logger:
+def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) -> logging.Logger:
     """Retrieve or create a globally scoped logger
 
     :param name: logger name, which dictates its configuration. Default is 'short'
@@ -186,9 +197,14 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None) ->
         file_handler = name_to_handler(name, console=file_console, rich_tracebacks=True)
         file_handler.addFilter(MaskingFilter())
         logger.addHandler(file_handler)
-    except:  # noqa too broad - best effort basis
-        pass
+        register_exception_hook()
+    except Exception as e:  # noqa too broad - best effort basis
+        raise e
     return logger
+
+def update_logger():
+    ...
+
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
     with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:

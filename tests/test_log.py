@@ -356,15 +356,47 @@ def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     print(content)
 
     assert len(content) == 3, content
-    assert "Logger1 message" in content[0]
-    assert "Logger2 message" in content[1]
-    assert "Logger3 message" in content[2]
+    assert 'Logger1 message' in content[0]
+    assert 'Logger2 message' in content[1]
+    assert 'Logger3 message' in content[2]
 
+
+def test_uncaught_exception_writes_to_file(tmp_path, monkeypatch):
+    import subprocess
+    import textwrap
+    clear_existing_loggers()
+
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
+    log_dir.mkdir(exist_ok=True)
+    log_file_path = str(log_dir / log_file_name)
+
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
+    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
+
+    error_msg = 'Test exception'
+    error_type = 'ValueError'
+    code = textwrap.dedent(f"""
+        from basepak.log import get_logger
+        logger = get_logger()
+        raise {error_type}('{error_msg}')
+    """)
+
+    result = subprocess.run(['python3', '-c', code], capture_output=True, env=os.environ)
+    assert result.returncode != 0
+
+    assert error_msg in result.stdout.decode()
+    assert error_type in result.stdout.decode()
+    with open(log_file_path, encoding='utf-8') as f:
+        content = f.read()
+        assert error_msg in content
+        assert error_type in content
 
 @pytest.fixture
 def _table():
     table = Table('Task', 'Status', 'Notes', header_style='bold magenta')
-    table.add_row("Task1", 'Success', 'Note1')
+    table.add_row("Task1", 'Success', 'Test message')
     table.add_row('Task2', 'Failure', 'Note2')
     return table
 
@@ -391,10 +423,8 @@ def test_write_table_to_file(tmp_path, monkeypatch, _table):
     assert 'Success' in content
     assert 'Failure' in content
 
-    # Verify that ANSI escape sequences (like "\x1b[") are present,
-    # indicating that color formatting was preserved.
     import re
-    ansi_escape = re.compile(r'\x1b\[')
+    ansi_escape = re.compile(r'\x1b\[') # Verify that ANSI escape sequences are present,
     assert ansi_escape.search(content), 'No ANSI escape codes found in the log output!'
 
 
@@ -411,7 +441,7 @@ def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
 
     assert not os.path.exists(log_file_path)
 
-def test_logger_no_color(tmp_path, monkeypatch):
+def test_write_logger_no_color(tmp_path, monkeypatch):
     clear_existing_loggers()
     log_file_name = 'test.log'
     log_dir = tmp_path / 'logs'
@@ -431,6 +461,7 @@ def test_logger_no_color(tmp_path, monkeypatch):
 
     import re
     ansi_escape = re.compile(r'\x1b\[')
+    assert 'Test message' in content
     assert not ansi_escape.search(content)
 
 def test_write_table_no_color(tmp_path, monkeypatch, _table):
@@ -451,4 +482,5 @@ def test_write_table_no_color(tmp_path, monkeypatch, _table):
 
     import re
     ansi_escape = re.compile(r'\x1b\[')
+    assert 'Test message' in content
     assert not ansi_escape.search(content)
