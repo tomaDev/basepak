@@ -5,8 +5,9 @@ import logging
 import os
 import re
 import shutil
+import sys
 from collections.abc import Mapping, Sequence
-from functools import partial, cache, lru_cache
+from functools import partial
 from numbers import Number
 from typing import AnyStr, Callable, Optional
 
@@ -31,7 +32,6 @@ RICH_THEME_KWARGS_DEFAULT = {
     'logging.warning': 'yellow',
     'logging.level.warning': 'bold yellow',
 }
-import sys
 
 def register_exception_hook(logger_name='plain'):
     def log_uncaught_exceptions(exc_type, exc_value, exc_traceback):
@@ -39,7 +39,7 @@ def register_exception_hook(logger_name='plain'):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        logger.critical("Uncaught Exception:", exc_info=(exc_type, exc_value, exc_traceback))
+        logger.critical('Uncaught Exception:', exc_info=(exc_type, exc_value, exc_traceback))
 
     sys.excepthook = log_uncaught_exceptions
 
@@ -101,19 +101,7 @@ class _BaseRichHandler(RichHandler):
         self.propagate = False  # prevent messages from being passed to the root logger
 
 
-class _RichRichHandler(_BaseRichHandler):
-    def __init__(self, *args, **kwargs):
-        kwargs['rich_tracebacks'] = True
-        super().__init__(*args, **kwargs)
-        self.tracebacks_suppress = [  # solid libs, skip tracebacks
-            # installed
-            'click', 'requests', 'urllib3', 'paramiko', 'tenacity', 'rich', 'paramiko', 'psutil', 'scp',
-            # built-in
-            'futures', 'concurrent',
-        ]
-
-
-class ShortRichHandler(_RichRichHandler):
+class ShortRichHandler(_BaseRichHandler):
     """Short RichHandler for logging messages
 
     Example:
@@ -125,7 +113,7 @@ class ShortRichHandler(_RichRichHandler):
         self.setFormatter(logging.Formatter(fmt='%(message)s', datefmt='%X', ))
 
 
-class LongRichHandler(_RichRichHandler):
+class LongRichHandler(_BaseRichHandler):
     """Long RichHandler for logging messages
 
     Example:
@@ -202,9 +190,6 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
         raise e
     return logger
 
-def update_logger():
-    ...
-
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
     with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
@@ -212,10 +197,14 @@ def _write_table_to_file(table_: rich.table.Table) -> None:
         w.print(table_)
 
 def _set_log_path() -> str:
-    log_file_name = os.environ.setdefault('BASEPAK_LOG_FILE', LOG_FILE_NAME_DEFAULT)
+    log_file = os.environ.setdefault('BASEPAK_LOG_FILE', LOG_FILE_NAME_DEFAULT)
     log_dir = os.environ.setdefault('BASEPAK_LOG_DIR', os.path.expanduser('~'))
-    log_path = os.environ.get('BASEPAK_LOG_PATH') or os.path.join(log_dir, log_file_name)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log_path = os.environ.setdefault('BASEPAK_LOG_PATH', os.path.join(log_dir, log_file))
+
+    os.environ['BASEPAK_LOG_FILE'] = os.path.basename(log_path)
+    log_dir = os.environ['BASEPAK_LOG_DIR'] = os.path.dirname(log_path)
+    if os.environ.get('BASEPAK_WRITE_LOG_TO_FILE'):
+        os.makedirs(log_dir, exist_ok=True)
     return log_path
 
 def print_table(table_: rich.table.Table) -> None:

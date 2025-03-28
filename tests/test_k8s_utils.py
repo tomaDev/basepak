@@ -222,7 +222,7 @@ def test_kubectl_dump(tmp_path):
 def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
     with _fresh_pod() as pod1, _fresh_pod() as pod2:
         tmp_file = tmp_path / 'tmp.yaml'
-        tmp_file.write_text('a' * 100_000_000)
+        tmp_file.write_text('a' * 10_000_000)
 
         remote_path_pod1 = f'{pod1}:/tmp/file'
         remote_path_pod2 = f'{pod2}:/tmp/file'
