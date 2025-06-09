@@ -651,14 +651,17 @@ def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl:
     return retries
 
 
-def get_pod_name_and_job_image(selector: str, container: str, namespace: str, logger: logging.Logger,
-                               retries: Optional[int] = consts.RETRIES_DEFAULT) -> Dict[str, str]:
+def get_pod_name_and_job_image(
+        selector: str, container: str, namespace: str, logger: logging.Logger,
+        retries: Optional[int] = consts.RETRIES_DEFAULT, image_override: Optional[str] = None,
+) -> Dict[str, str]:
     """Get pod name and job image from k8s
     :param selector:  selector
     :param container: container name
     :param namespace: k8s namespace
     :param logger: logger object
     :param retries: number of retries
+    :param image_override:
     :return:  {
         'POD_NAME': pod_name,
         'JOB_IMAGE': job_image,
@@ -671,7 +674,13 @@ def get_pod_name_and_job_image(selector: str, container: str, namespace: str, lo
     pod_name = pod_manifest['metadata']['name']
     db_pod_containers = pod_manifest['spec']['containers']
     job_image = next(x['image'] for x in db_pod_containers if x['name'] == container)
-    logger.info(f'Pod: {pod_name}\nContainer image: {job_image}')
+    logger.info(f'Pod: {pod_name}\nJob image: {job_image}')
+    if image_override:
+        if image_override == job_image:
+            logger.warning('image override provided, but it is identical to current job image. Skipping override...')
+        else:
+            logger.warning(f'{image_override=}\nOverriding...')
+            job_image = image_override
     return {
         'POD_NAME': pod_name,
         'JOB_IMAGE': job_image,

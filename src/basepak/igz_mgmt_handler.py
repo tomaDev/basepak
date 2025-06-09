@@ -1,7 +1,7 @@
 import os
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
-from typing import Optional
+from typing import Optional, Generator
 
 import igz_mgmt
 from igz_mgmt import exceptions as igz_mgmt_exceptions
@@ -12,7 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 def client_context(
         user_from_credential_store: Optional[str] = 'USER',
         host_ip: Optional[str] = None,
-) -> igz_mgmt.Client:
+) -> Generator[igz_mgmt.Client]:
     """Context manager for igz_mgmt.Client"""
     from . import log
     from .credentials import Credentials
@@ -22,7 +22,7 @@ def client_context(
     if not creds:
         raise ValueError('No user credentials found')
     logger = log.get_logger()
-    endpoint = f'http://{host_ip}:8001'
+    endpoint = f'http://{host_ip}:8001' # noqa: http is not secure
     logger.info(f'User: {creds["USERNAME"]}')
     logger.info(endpoint)
     client = igz_mgmt.Client(endpoint=endpoint, username=creds['USERNAME'], password=creds['PASSWORD'], logger=logger)
@@ -77,7 +77,7 @@ def bulk_update_app_services(
 def get_desired_states_stash(created: str, service_types: Iterable[str]) -> dict:
     """
     Get desired states for app services, filtered by type
-    :param created: timestamp of creation
+    :param created: creation timestamp
     :param service_types: types of services to stash
     :return: service names and their desired states
     """
