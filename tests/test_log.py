@@ -18,13 +18,13 @@ from basepak.log import (
 )
 
 REDACTION_TEST_DATA = [
-    ("mysecretpassword", "************word"),
-    ("short", "*hort"),
-    ("test", "****"),  # strings shorter than plaintext_suffix_length should be fully redacted
-    ("1234567890", "******7890"),
-    ("--password=my_phrase", "--**************rase"),
-    ("password: my_phrase", "********* *****rase"),
-    ("No secrets here", "** ******* here"),
+    ('mysecretpassword', '************word'),
+    ('short', '*hort'),
+    ('test', '****'),  # strings shorter than plaintext_suffix_length should be fully redacted
+    ('1234567890', '******7890'),
+    ('--password=my_phrase', '--**************rase'),
+    ('password: my_phrase', '********* *****rase'),
+    ('No secrets here', '** ******* here'),
 ]
 
 def test_redact_str():
@@ -32,16 +32,16 @@ def test_redact_str():
         assert redact_str(original) == expected
 
 def test_redact_str_custom_mask():
-    original = "mysecretpassword"
-    expected = "########password"
-    assert redact_str(original, mask="#", plaintext_suffix_length=8) == expected
+    original = 'mysecretpassword'
+    expected = '########password'
+    assert redact_str(original, mask='#', plaintext_suffix_length=8) == expected
 
 def test_masking_filter():
     filter_ = MaskingFilter()
-    sensitive_message = "password: my_phrase --access-key=abc123 data-access-key=secret123"
-    expected_message =  "password: ******** --access-key=******** data-access-key=********"
+    sensitive_message = 'password: my_phrase --access-key=abc123 data-access-key=secret123'
+    expected_message =  'password: ******** --access-key=******** data-access-key=********'
     record = logging.LogRecord(
-        name="test",
+        name='test',
         level=logging.INFO,
         pathname=__file__,
         lineno=10,
@@ -54,9 +54,9 @@ def test_masking_filter():
 
 def test_masking_filter_no_mask():
     filter_ = MaskingFilter()
-    message = "This is a !safe message."
+    message = 'This is a !safe message.'
     record = logging.LogRecord(
-        name="test",
+        name='test',
         level=logging.INFO,
         pathname=__file__,
         lineno=10,
@@ -95,51 +95,51 @@ def test_date_time_encoder():
     now = datetime.datetime.now()
     import json
 
-    data = {"timestamp": now}
+    data = {'timestamp': now}
     json_str = json.dumps(data, cls=DateTimeEncoder)
     assert json_str == f'{{"timestamp": "{now.isoformat()}"}}'
 
 def test_log_as_json(caplog):
-    logger = get_logger("plain")
-    data = {"key": "value", "number": 123}
+    logger = get_logger('plain')
+    data = {'key': 'value', 'number': 123}
     with caplog.at_level(logging.INFO):
-        log_as("json", data, printer=logger.info)
+        log_as('json', data, printer=logger.info)
         assert '"key": "value"' in caplog.text
         assert '"number": 123' in caplog.text
 
 def test_log_as_yaml(caplog):
-    logger = get_logger("plain")
-    data = {"key": "value", "number": 123}
+    logger = get_logger('plain')
+    data = {'key': 'value', 'number': 123}
     with caplog.at_level(logging.INFO):
-        log_as("yaml", data, printer=logger.info)
-        assert "key: value" in caplog.text
-        assert "number: 123" in caplog.text
+        log_as('yaml', data, printer=logger.info)
+        assert 'key: value' in caplog.text
+        assert 'number: 123' in caplog.text
 
 def test_log_as_invalid_syntax():
     with pytest.raises(NotImplementedError):
-        log_as("xml", data={"key": "value"})
+        log_as('xml', data={'key': 'value'})
 
 def test_log_as_with_string_data(caplog):
-    logger = get_logger("plain")
+    logger = get_logger('plain')
     data = '{"key": "value", "number": 123}'
     with caplog.at_level(logging.INFO):
-        log_as("json", data, printer=logger.info)
+        log_as('json', data, printer=logger.info)
         assert '"key": "value"' in caplog.text
         assert '"number": 123' in caplog.text
 
 def test_log_as_with_no_data(caplog):
-    logger = get_logger("plain")
+    logger = get_logger('plain')
     with caplog.at_level(logging.INFO):
-        log_as("json", data=None, printer=logger.info)
-        assert caplog.text == ""
+        log_as('json', data=None, printer=logger.info)
+        assert caplog.text == ''
 
 def test_log_as_yaml_flow_style(caplog):
-    logger = get_logger("plain")
-    data = {"key": "value", "number": 123}
+    logger = get_logger('plain')
+    data = {'key': 'value', 'number': 123}
     with caplog.at_level(logging.INFO):
-        log_as("yaml", data, printer=logger.info, yaml_default_flow_style=False)
-        assert "key: value" in caplog.text
-        assert "number: 123" in caplog.text
+        log_as('yaml', data, printer=logger.info, yaml_default_flow_style=False)
+        assert 'key: value' in caplog.text
+        assert 'number: 123' in caplog.text
 
 def test_rich_handlers():
     for name in SUPPORTED_LOGGERS.keys():
@@ -149,27 +149,27 @@ def test_rich_handlers():
             assert isinstance(handler, logging.Handler)
 
 def test_plain_rich_handler_emit(capsys):
-    logger = get_logger("plain")
-    logger.info("Test message")
+    logger = get_logger('plain')
+    logger.info('Test message')
     captured = capsys.readouterr()
-    assert "Test message" in captured.out
+    assert 'Test message' in captured.out
 
 def test_table_partial():
     from basepak.log import Table
     table = Table()
-    assert table.header_style == "bold magenta"
+    assert table.header_style == 'bold magenta'
 
 def test_log_as_with_mapping_data(caplog):
-    logger = get_logger("plain")
-    data = {"key": "value", "number": 123}
+    logger = get_logger('plain')
+    data = {'key': 'value', 'number': 123}
     with caplog.at_level(logging.INFO):
-        log_as("json", data=data, printer=logger.info)
+        log_as('json', data=data, printer=logger.info)
         assert '"key": "value"' in caplog.text
         assert '"number": 123' in caplog.text
 
-def test_get_logger_caching():
-    logger1 = get_logger("plain")
-    logger2 = get_logger("plain")
+def test_get_logger_is_monad():
+    logger1 = get_logger('plain')
+    logger2 = get_logger('plain')
     assert logger1 is logger2
 
 
@@ -179,7 +179,7 @@ def create_tempfile():
     Pytest fixture that yields a path to a writable temporary file.
     We remove the file after the test is done.
     """
-    fd, file_path = tempfile.mkstemp(suffix=".txt")
+    fd, file_path = tempfile.mkstemp(suffix='.txt')
     os.close(fd)  # We only need the path; close the low-level file descriptor.
     yield file_path
     # Cleanup after the test
@@ -198,14 +198,14 @@ password = super_secret
 not_sensitive = remain
 password plainvalue
 """
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(file_path, 'w', encoding='utf-8') as f:
         f.write(original_content)
 
     # Act: Redact the file
     redact_file(file_path)  # uses default keys => includes "password"
 
     # Assert
-    with open(file_path, encoding="utf-8") as f:
+    with open(file_path, encoding='utf-8') as f:
         result = f.read()
 
     assert "super_secret" not in result
@@ -320,38 +320,38 @@ def test_write_log_to_file(tmp_path, monkeypatch):
 def test_no_write_log_to_file(tmp_path, monkeypatch):
     assert not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')
     clear_existing_loggers()
-    log_file_name = "test.log"
-    log_dir = tmp_path / "logs"
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
     assert not os.path.exists(log_file_path)
 
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
 
-    logger = get_logger("short", level='debug')
-    logger.info("Test message")
+    logger = get_logger('short', level='debug')
+    logger.info('Test message')
 
     assert not os.path.exists(log_file_path)
 
 
 def test_multiple_loggers_write_to_same_file(tmp_path, monkeypatch):
     clear_existing_loggers()
-    log_file_name = "test.log"
-    log_dir = tmp_path / "logs"
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv("BASEPAK_LOG_FILE", log_file_name)
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
     monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
 
-    logger1 = get_logger("short", level='debug')
-    logger2 = get_logger("long")
-    logger3 = get_logger("plain", level='info')
-    logger1.info("Logger1 message")
-    logger2.info("Logger2 message")
-    logger3.info("Logger3 message")
+    logger1 = get_logger('short', level='debug')
+    logger2 = get_logger('long')
+    logger3 = get_logger('plain', level='info')
+    logger1.info('Logger1 message')
+    logger2.info('Logger2 message')
+    logger3.info('Logger3 message')
 
-    with open(log_file_path, encoding="utf-8") as f:
+    with open(log_file_path, encoding='utf-8') as f:
         content = f.readlines()
     print(content)
 
@@ -396,7 +396,7 @@ def test_uncaught_exception_writes_to_file(tmp_path, monkeypatch):
 @pytest.fixture
 def _table():
     table = Table('Task', 'Status', 'Notes', header_style='bold magenta')
-    table.add_row("Task1", 'Success', 'Test message')
+    table.add_row('Task1', 'Success', 'Test message')
     table.add_row('Task2', 'Failure', 'Note2')
     return table
 
@@ -430,8 +430,8 @@ def test_write_table_to_file(tmp_path, monkeypatch, _table):
 
 def test_no_write_table_to_file(tmp_path, monkeypatch, _table):
     assert not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')
-    log_file_name = "test.log"
-    log_dir = tmp_path / "logs"
+    log_file_name = 'test.log'
+    log_dir = tmp_path / 'logs'
     log_file_path = str(log_dir / log_file_name)
 
     monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
