@@ -12,7 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 def client_context(
         user_from_credential_store: Optional[str] = 'USER',
         host_ip: Optional[str] = None,
-) -> Generator[igz_mgmt.Client]:
+) -> Generator[igz_mgmt.Client, None, None]:
     """Context manager for igz_mgmt.Client"""
     from . import log
     from .credentials import Credentials
