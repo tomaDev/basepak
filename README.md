@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/basepak.svg)](https://pypi.org/project/basepak)
 [![Security: Bandit](https://img.shields.io/badge/security-bandit-green.svg)](https://bandit.readthedocs.io/en/latest/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/basepak.svg)](https://pypi.org/project/basepak)
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tomaDev/basepak)
 -----
 Basepak provides a toolset to interact with the Iguazio platform and create scripts in the Iguazio environment.
 
