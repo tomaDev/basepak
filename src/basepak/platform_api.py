@@ -270,10 +270,10 @@ def start_api_session(
 ) -> (requests.Session, requests.Response):
     """Start HTTP session with the cluster API
 
-    :param creds: tuple or dict with username and password
+    :param creds: Tuple or dict with username and password
     :param url: URL to the system API. Default is the loopback address
     :param plane: 'control' or 'data'
-    :param retry_on_4xx: toggle whether to retry on 4xx errors
+    :param retry_on_4xx: toggle whether to retry on 4xx type errors
     :return: session and response
     """
     logger = log.get_logger()

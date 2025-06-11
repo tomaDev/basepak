@@ -21,7 +21,7 @@ def md5sum(path: PathLike, chunk_size: int = 8192) -> str:
     """
     import hashlib
 
-    hasher = hashlib.md5()
+    hasher = hashlib.md5(usedforsecurity=False)
     with Path(path).open('rb') as f:
         for chunk in iter(lambda: f.read(chunk_size), b''):
             hasher.update(chunk)
@@ -86,15 +86,12 @@ def kubectl_cp(
         logger: Optional[logging.Logger] = None,
         retries: Optional[int] = 3,
 ) -> None:
-    """Alternative to `kubectl cp`, due to BKP-30. Main departures from `kubectl cp`:
+    """cp command on top of `kubectl cp` and `kubectl exec`, due to BKP-30. Departures from `kubectl cp`:
 
-    1. Portability: `kubectl cp` uses `tar` under the hood for any src/dest. For single file transfers, we stream
-       directly to the target, thus dropping the need for `tar`. For dir transfers we use the `tar` on source host to
-       stream it to the target as a file. We then extract it with the `tar` on the target host. This is done to reduce
-       `tar` version compatibility issues across hosts. The tradeoffs are that it takes x2 longer and requires x2 the
-       space on the target host.
-    2. Functionality: `kubectl cp` does not support remote-to-remote transfers. We do, by downloading to local host first.
-       Local host must have space to store x2 the content size
+    1. Portability for single file transfers: `kubectl cp` uses `tar` under the hood for any src/dest.
+       For single file transfers, we stream directly to the target, thus dropping the need for `tar`.
+    2. Functionality: `kubectl cp` does not support remote-to-remote transfers. We do, downloading to local host first.
+       Local host must have enough disk to store x2 the content size
 
     :param src: source path. Can be local or remote
     :param dest: target path. Can be local or remote
@@ -108,7 +105,6 @@ def kubectl_cp(
     up_src = dl_src = str(src)
     up_dest = dl_dest = str(dest)
 
-
     logger = logger or log.get_logger(name='plain')
 
     is_download = ':' in str(src)
@@ -120,16 +116,19 @@ def kubectl_cp(
         logger.warning(banner)
         raise ValueError(banner) # implementing this encourages bad boundaries, so we error out instead
 
-    if is_download and is_upload:
-        import tempfile
-        dl_dest = up_src = tempfile.mktemp()
-        logger.warning('Both source and target are remote. Downloading to local host first, and uploading from there')
-
-    if is_download:
-        _dl(dl_src, dl_dest, str(err_file or f'{dl_dest}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
-    if is_upload:
-        _up(up_src, up_dest, str(err_file or f'{up_src}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
-
+    temp_file = None
+    try:
+        if is_download and is_upload:
+            import tempfile
+            temp_file = dl_dest = up_src = tempfile.NamedTemporaryFile(delete=False).name
+            logger.warning('Both source and target are remote. Downloading to local host first, and then uploading')
+        if is_download:
+            _dl(dl_src, dl_dest, str(err_file or f'{dl_dest}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
+        if is_upload:
+            _up(up_src, up_dest, str(err_file or f'{up_src}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
+    finally:
+        if temp_file and os.path.exists(temp_file):
+            os.remove(temp_file)
 
 def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
     remote, s_path = _parse_remote_path(src)
