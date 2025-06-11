@@ -16,7 +16,7 @@ Basepak provides a toolset to interact with the Iguazio platform and create scri
 ## Installation
 
 ```console
-pip install basepak
+uv pip install basepak
 ```
 ## Getting Started
 
@@ -25,3 +25,62 @@ TBD
 ## License
 
 `basepak` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+
+### Core Capabilities
+- **Task Runner**: Simple framework for execution, retries, error handling, logging and monitoring
+- **Kubernetes Operations**: Resource management, file transfer, job orchestration, and template generation
+- **Iguazio Platform client**: HTTP API client with session management and retry logic
+- **Logging module**: Centralized logging with rich output formatting and sensitive data masking
+- **Data Types & Utilities**: Custom types for units, ranges, IP addresses, CLI parameters etc.
+
+### Main Modules
+- `tasks`: The task framework.
+- `k8s_utils`: Kubernetes resource management and operations
+- `platform_api`: Iguazio platform HTTP API abstract class
+- `igz_mgmt_handler`: Convenience functions for igz_mgmt package
+- `log`: Enhanced logging with security features
+- `units`: Data types for measurements and CLI parameters
+- `stats`: Task monitoring and system validation
+- `locks`: Run lock functionality to prevent unwanted concurrent script runs
+
+
+## Quick Start
+
+```python
+import basepak
+from basepak import log, k8s_utils
+
+# Initialize logging
+logger = log.get_logger()
+logger.info('hello from basepak!')
+```
+
+## Development
+
+### Setup Development Environment
+
+The project uses `hatch` for management
+
+### Available Scripts
+- `hatch run lock`: Update dependency lockfile
+- `hatch run upgrade`: Upgrade dependencies
+- `hatch run release`: Create and push version tag
+
+### Testing 
+
+Run tests across multiple Python versions:
+```bash
+hatch test --cover --randomize --all --durations=5
+```
+
+### Code Quality
+
+- **Security scanning**: `hatch run scan:scan`
+- **Type checking**: `hatch run types:check` (WIP)
+- **Coverage reporting**: Integrated with pytest
+
+## Release Process
+
+Releases are automated through GitHub Actions when version tags are pushed
+
+The release workflow validates versions, builds packages, and publishes to both GitHub Releases and PyPI.
