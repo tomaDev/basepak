@@ -8,12 +8,6 @@
 
 Basepak provides a toolset to simplify CLI utility creation for the Iguazio environment
 
-## Table of Contents
-
-- [Installation](#installation)
-- [Getting Started](#Getting-Started)
-- [License](#license)
-
 ## Installation
 
 ```console
@@ -41,10 +35,8 @@ uv pip install basepak
 ## Quick Start
 
 ```python
-import basepak
-from basepak import log, k8s_utils
+from basepak import log
 
-# Initialize logging
 logger = log.get_logger()
 logger.info('hello from basepak!')
 ```
