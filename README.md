@@ -5,7 +5,8 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/basepak.svg)](https://pypi.org/project/basepak)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tomaDev/basepak)
 -----
-Basepak provides a toolset to interact with the Iguazio platform and create scripts in the Iguazio environment.
+
+Basepak provides a toolset to simplify CLI utility creation for the Iguazio environment
 
 ## Table of Contents
 
@@ -18,13 +19,6 @@ Basepak provides a toolset to interact with the Iguazio platform and create scri
 ```console
 uv pip install basepak
 ```
-## Getting Started
-
-TBD
-
-## License
-
-`basepak` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
 
 ### Core Capabilities
 - **Task Runner**: Simple framework for execution, retries, error handling, logging and monitoring
@@ -37,7 +31,7 @@ TBD
 - `tasks`: The task framework.
 - `k8s_utils`: Kubernetes resource management and operations
 - `platform_api`: Iguazio platform HTTP API abstract class
-- `igz_mgmt_handler`: Convenience functions for igz_mgmt package
+- `igz_mgmt_handler`: context manager for [Iguazio Management SDK](https://iguazio.github.io/igz-mgmt-sdk/)
 - `log`: Enhanced logging with security features
 - `units`: Data types for measurements and CLI parameters
 - `stats`: Task monitoring and system validation
@@ -81,6 +75,8 @@ hatch test --cover --randomize --all --durations=5
 
 ## Release Process
 
-Releases are automated through GitHub Actions when version tags are pushed
+Releases are automated through GitHub Actions when version tags are pushed. The release workflow validates versions, builds packages, and publishes to both GitHub Releases and PyPI.
 
-The release workflow validates versions, builds packages, and publishes to both GitHub Releases and PyPI.
+## License
+
+`basepak` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
