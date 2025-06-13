@@ -18,9 +18,9 @@ validate-bump = true
 
 [project]
 name = 'basepak'
-dynamic = ['version', 'description']
+dynamic = ['version']
 readme = 'README.md'
-description = 'Iguazio CLI utility SDK'
+description = 'Iguazio CLI SDK'
 requires-python = '>=3.9'
 authors = [
   { name = 'tomaDev', email = 'genins21@gmail.com' },
