@@ -20,6 +20,7 @@ validate-bump = true
 name = 'basepak'
 dynamic = ['version', 'description']
 readme = 'README.md'
+description = 'Iguazio CLI utility SDK'
 requires-python = '>=3.9'
 authors = [
   { name = 'tomaDev', email = 'genins21@gmail.com' },
@@ -31,6 +32,7 @@ classifiers = [
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: Implementation :: CPython',
     'Programming Language :: Python :: Implementation :: PyPy',
 ]
@@ -92,7 +94,7 @@ skips = [
 scan = 'bandit --recursive src/basepak --configfile pyproject.toml'
 
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ['3.9', '3.10', '3.11', '3.12']
+python = ['3.9', '3.10', '3.11', '3.12', '3.13']
 
 [tool.coverage.run]
 branch = true
