@@ -17,10 +17,15 @@ POD_SPEC_DEFAULT = {
                         'key': 'node-role.kubernetes.io/master',
                         'operator': 'DoesNotExist',
                     }, {
-
                         'key': 'node-role.kubernetes.io/control-plane',
                         'operator': 'DoesNotExist',
-                    }]}}
+                    }, {'key': 'eks.amazonaws.com/capacityType',
+                        'operator': 'NotIn',
+                        'values': [
+                            'ON_DEMAND',
+                            ],
+                    },
+                    ]}}
             ]}}
 }
 
