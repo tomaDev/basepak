@@ -31,6 +31,8 @@ def md5sum(path: PathLike, chunk_size: int = 8192) -> str:
 DATE_FORMAT_DEFAULT = '%Y-%m-%dT%H:%M:%SZ'
 EVENTS_WINDOW_DEFAULT = '1 hour'
 RESOURCE_NOT_FOUND = 'Error from server (NotFound)'
+BACKOFF_LIMIT_EXCEEDED_ERROR = 'BackoffLimitExceeded'
+WAIT_TIMEOUT_ERROR = 'timed out waiting for the condition'
 
 
 def kubectl_dump(command: PathLike | Executable, output_file: PathLike, mode: str = 'dry-run') -> None:
@@ -525,11 +527,9 @@ def create_oneliner_job(
     return spec['JOB_NAME']
 
 
-# TODO: this function is buggy. It was created because in k8s <=1.21 kubectl errors on many --for conditions.
-#   Now we've dropped support for k8s <v1.24, so this function should be refactored to use kubectl wait
 def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     """Wait for k8s job to complete
-    :param spec: dict with job parameters
+    :param spec: dict with job parameters. Must contain 'NAMESPACE', 'JOB_NAME', 'MODE' keys.
     :param tail: num of lines to print from job logs on completion. Defaults to k8s default
     """
     namespace = spec.get('NAMESPACE')
@@ -538,6 +538,11 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     name = spec.get('JOB_NAME')
     if not name:
         raise ValueError('job name not specified')
+    mode = spec.get('MODE')
+    if not mode:
+        raise ValueError('mode not specified')
+    job_timeout = spec.get('JOB_TIMEOUT') or '1h'
+
     logger = log.get_logger(name=spec.get('LOGGER_NAME'))
     logger_plain = log.get_logger('plain')
     job_status_cmd = 'get job --output jsonpath={.status} ' + name
@@ -546,10 +551,11 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
 
     kubectl = Executable('kubectl', f'kubectl --namespace {namespace}')
     kubectl_run = functools.partial(kubectl.run, show_cmd=False, check=False)
-    job_timeout = spec['JOB_TIMEOUT']
     logger.info(f'Waiting for {name} to complete, {job_timeout=}')
-    if spec['MODE'] == 'dry-run':
+
+    if mode == 'dry-run':
         return True
+
     response = kubectl_run(job_status_cmd)
     retry_total = retry_count = consts.RETRIES_DEFAULT
     while response.returncode and response.stderr.startswith(RESOURCE_NOT_FOUND) and retry_count:
@@ -559,42 +565,42 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
         logger_plain.warning(f'{response.stderr}\nWaiting {backoff}s')
         response = kubectl_run(job_status_cmd)
 
-    wait_interval = spec.get('WAIT_INTERVAL') or consts.WAIT_INTERVAL
-
     kubectl.stream(get_pods_cmd)
-    retry_count = retry_total
     status = json.loads(kubectl.run(job_status_cmd).stdout)
-    while status.get('active') and retry_count:  # main wait loop
-        retry_not_ready_count = retry_total
-        time.sleep(wait_interval)
-        while status.get('active') and status.get('ready') == 0 and retry_not_ready_count:
-            # job active, no pods ready (retry after failure, large image pull etc.)
-            backoff = 2 ** (retry_total - retry_not_ready_count)
-            time.sleep(backoff)  # lazy man's exponential backoff
-            retry_not_ready_count -= 1
-            status = json.loads(kubectl.run(job_status_cmd).stdout)
-            kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
-        # if 'gibby' in name:  # remove when gibby errors on 'Task failed and retry limit has been reached' and not hang
-        #     retry_count = _check_gibby_logs_for_container_hang(name, namespace, kubectl, retry_count, logger_plain)
-        status = json.loads(kubectl_run(job_status_cmd).stdout)
 
-        from datetime import datetime
+    import itertools
+    from datetime import datetime
+
+    # until kubectl wait gets support for multiple conditions (https://github.com/kubernetes/kubernetes/issues/95759)
+    # we cycle between them as round-robin
+    conditions = itertools.cycle(['condition=complete', 'condition=failed'])
+    wait_interval = spec.get('WAIT_INTERVAL') or consts.WAIT_INTERVAL
+    wait_job_cmd = f'wait job {name} --timeout={int(wait_interval)//2}s --for '
+
+    response = kubectl_run(wait_job_cmd, next(conditions))
+    while response.returncode:
         now = datetime.now()
         if now.minute < 1 and now.second < wait_interval % 60 + 1:  # hourly liveness
             kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
+        if response.stderr.startswith(RESOURCE_NOT_FOUND):
+            logger.debug('Job was created, but was unexpectedly deleted!\nEvents:')
+            print_namespace_events(namespace)
+            raise RuntimeError(f'Job was created, but was unexpectedly deleted!')
+        if WAIT_TIMEOUT_ERROR not in response.stderr:
+            logger_plain.warning(response.stderr)
+            raise RuntimeError(response.stderr)
+
+        response = kubectl_run(wait_job_cmd, next(conditions))
 
     kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
-    if response.returncode:
-        print_namespace_events(namespace)
-        raise RuntimeError(response.stderr)
 
     terminal_status = json.loads(kubectl.run(job_status_cmd).stdout)
     kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s',
-                   '' if not tail else f' --tail={tail}', show_cmd=False)
+                   f'--tail={tail}' if tail else '', show_cmd=False)
     if terminal_status.get('succeeded'):
         return True
 
-    if status != terminal_status:
+    if status != terminal_status: # shifting from "failed" to "unknown" etc.
         logger.error('Running status does not match terminal status:')
         log.log_as('json', status, printer=logger_plain.warning)
     logger.info('Terminal status:')
@@ -604,6 +610,7 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     raise RuntimeError(f'{name=}, unexpected status - {status}')
 
 
+# deprecated
 def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl: Executable, retries: int,
                                          logger: logging.Logger) -> int:
     """Check logs for container hang and delete all running pods if detected
