@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest  # type: ignore
 
 from basepak import k8s_utils
+from basepak.time import sleep
 from basepak.versioning import Version
 
 SUPPORTED_MODES = ['dry-run', 'normal', 'unsafe']
@@ -229,3 +230,30 @@ def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
         k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path_pod1, mode='unsafe', retries=1)
 
         k8s_utils.kubectl_cp(src=remote_path_pod1, dest=remote_path_pod2, mode=mode, retries=1)
+
+
+@pytest.mark.parametrize('mode', SUPPORTED_MODES)
+def test_await_k8s_job_completion_complete_plain(mode):
+    name = _get_fresh_resource_name('job')
+    if mode != 'dry-run':
+        subprocess.run(f'kubectl create job {name} --image=busybox -- /bin/sh -c "sleep 5"', shell=True)
+    k8s_utils.await_k8s_job_completion({
+        'NAMESPACE': 'default',
+        'JOB_NAME': name,
+        'MODE': mode,
+    })
+    if mode != 'dry-run':
+        subprocess.run(f'kubectl delete job {name} --wait=false', shell=True, check=False)
+
+
+def test_await_k8s_job_completion_complete_with_fail():
+    name = _get_fresh_resource_name('job')
+    subprocess.run(f'kubectl create job {name} --image=busybox -- /bin/sh -c "sleep 10"', shell=True)
+    sleep(5)
+    subprocess.run(f'kubectl delete pod --selector=job-name={name} --wait=false', shell=True, check=False)
+    k8s_utils.await_k8s_job_completion({
+        'NAMESPACE': 'default',
+        'JOB_NAME': name,
+        'MODE': 'unsafe',
+    })
+    subprocess.run(f'kubectl delete job {name} --wait=false', shell=True, check=False)
