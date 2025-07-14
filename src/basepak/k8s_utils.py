@@ -547,7 +547,7 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     logger_plain = log.get_logger('plain')
     job_status_cmd = 'get job --output jsonpath={.status} ' + name
     output_wide_on_debug = '--output wide' if spec.get('LOG_LEVEL') == 'DEBUG' else ''
-    get_pods_cmd = f'get pods --selector=job-name={name} {output_wide_on_debug}'
+    get_pods_cmd = f'get pods --ignore-not-found --selector=job-name={name} {output_wide_on_debug}'
 
     kubectl = Executable('kubectl', f'kubectl --namespace {namespace}')
     kubectl_run = functools.partial(kubectl.run, show_cmd=False, check=False)
@@ -566,7 +566,6 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
         response = kubectl_run(job_status_cmd)
 
     kubectl.stream(get_pods_cmd)
-    status = json.loads(kubectl.run(job_status_cmd).stdout)
 
     import itertools
     from datetime import datetime
@@ -578,14 +577,16 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     wait_job_cmd = f'wait job {name} --timeout={int(wait_interval)//2}s --for '
 
     response = kubectl_run(wait_job_cmd, next(conditions))
+    kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
     while response.returncode:
         now = datetime.now()
         if now.minute < 1 and now.second < wait_interval % 60 + 1:  # hourly liveness
             kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
         if response.stderr.startswith(RESOURCE_NOT_FOUND):
-            logger.debug('Job was created, but was unexpectedly deleted!\nEvents:')
+            msg = f'{response.stderr}! Was the job deleted?'
+            logger.warning(f'{msg}\nEvents:')
             print_namespace_events(namespace)
-            raise RuntimeError(f'Job was created, but was unexpectedly deleted!')
+            raise RuntimeError(msg)
         if WAIT_TIMEOUT_ERROR not in response.stderr:
             logger_plain.warning(response.stderr)
             raise RuntimeError(response.stderr)
@@ -594,20 +595,22 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
 
     kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
 
-    terminal_status = json.loads(kubectl.run(job_status_cmd).stdout)
     kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s',
                    f'--tail={tail}' if tail else '', show_cmd=False)
+    try:
+        terminal_status = json.loads(kubectl_run(job_status_cmd).stdout)
+    except json.JSONDecodeError as e:
+        msg = f'Failed to fetch job status'
+        logger.warning(msg)
+        raise RuntimeError(msg) from e
+
     if terminal_status.get('succeeded'):
         return True
-
-    if status != terminal_status: # shifting from "failed" to "unknown" etc.
-        logger.error('Running status does not match terminal status:')
-        log.log_as('json', status, printer=logger_plain.warning)
-    logger.info('Terminal status:')
+    logger.warning('Terminal status:')
     log.log_as('json', terminal_status, printer=logger_plain.warning)
-    if terminal_status.get('failed'):
-        raise RuntimeError(f'{name=}, {terminal_status=}')
-    raise RuntimeError(f'{name=}, unexpected status - {status}')
+    if not terminal_status.get('failed'):
+        logger.warning('Terminal status is unexpectedly neither succeeded nor failed')
+    raise RuntimeError(f'{name=}, {terminal_status=}')
 
 
 # deprecated
