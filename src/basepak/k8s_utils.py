@@ -234,7 +234,7 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                     os.remove(err_file)
             logger.debug(f'Uploaded {src} to {t_path} on {remote}. Retries: {retries - retries_init}/{retries_init}')
             break
-        except Exception: # noqa
+        except Exception as e: # noqa
             if msg := Path(err_file).read_text():
                 logger.error(msg)
             os.remove(err_file)
@@ -242,7 +242,8 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 exec_.run('rm', t_path, check=False)
                 raise RuntimeError(msg)
             retries -= 1
-            time.sleep(10)
+            logger.warning(str(e))
+            time.sleep(5)
 
 
 
