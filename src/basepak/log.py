@@ -164,13 +164,15 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
     :return: Configured logger instance
     """
     name = name or 'short'
-    if name in LOGGERS:
-        return logging.getLogger(name)
-    level = level or (logging.INFO if not LOGGERS else logging.getLogger(next(iter(LOGGERS))).getEffectiveLevel())
     logger = logging.getLogger(name)
+    level = level or (logging.INFO if not LOGGERS else logging.getLogger(next(iter(LOGGERS))).getEffectiveLevel())
+
+    if name in LOGGERS:
+        logger.setLevel(logging.getLevelName(level) if isinstance(level, int) else level.upper())
+        return logger
+    
     logger.addHandler(name_to_handler(name))
     logger.setLevel(logging.getLevelName(level) if isinstance(level, int) else level.upper())
-
     LOGGERS.add(name)
 
     if not is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
