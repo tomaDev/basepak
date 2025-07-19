@@ -82,22 +82,16 @@ def _parse_remote_path(_str: PathLike) -> tuple[str, str]:
 def kubectl_cp(
         src: PathLike,
         dest: PathLike,
-        err_file: Optional[PathLike] = None,
         mode: Optional[str] = 'dry-run',
         show_cmd=True,
         logger: Optional[logging.Logger] = None,
         retries: Optional[int] = 3,
 ) -> None:
-    """cp command on top of `kubectl cp` and `kubectl exec`, due to BKP-30. Departures from `kubectl cp`:
-
-    1. Portability for single file transfers: `kubectl cp` uses `tar` under the hood for any src/dest.
-       For single file transfers, we stream directly to the target, thus dropping the need for `tar`.
-    2. Functionality: `kubectl cp` does not support remote-to-remote transfers. We do, downloading to local host first.
-       Local host must have enough disk to store x2 the content size
+    """wrapper on top of `kubectl cp` with more error handling and remote-to-remote transfer functionality. Host must
+    have enough disk to store x2 the content size, as we use local fs to fully store contents before uploading to remote
 
     :param src: source path. Can be local or remote
     :param dest: target path. Can be local or remote
-    :param err_file: optional error file to write the error stream
     :param mode: execution mode. 'dry-run' only shows command, any other mode executes
     :param show_cmd: if True, logs the commands that are executed
     :param logger: logger object
@@ -125,28 +119,28 @@ def kubectl_cp(
             temp_file = dl_dest = up_src = tempfile.NamedTemporaryFile(delete=False).name
             logger.warning('Both source and target are remote. Downloading to local host first, and then uploading')
         if is_download:
-            _dl(dl_src, dl_dest, str(err_file or f'{dl_dest}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
+            _dl(dl_src, dl_dest, mode=mode, show_=show_cmd, logger=logger, retries=retries)
         if is_upload:
-            _up(up_src, up_dest, str(err_file or f'{up_src}.err'), mode=mode, show_=show_cmd, logger=logger, retries=retries)
+            _up(up_src, up_dest, mode=mode, show_=show_cmd, logger=logger, retries=retries)
     finally:
         if temp_file and os.path.exists(temp_file):
             os.remove(temp_file)
 
-def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
+def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
     remote, s_path = _parse_remote_path(src)
 
-    kubectl = Executable('kubectl', 'kubectl exec', remote, '--')
-    source_path_size = kubectl.run('du -sh', s_path, check=False)
-    if source_path_size.returncode:
-        logger.error(source_path_size.stderr)
-        raise RuntimeError(source_path_size.stderr)
+    kubectl = Executable('kubectl')
+    resp = kubectl.run('exec', remote, '-- du -sh', s_path, check=False)
+    if resp.returncode:
+        logger.error(resp.stderr)
+        raise RuntimeError(resp.stderr)
 
     import shutil
 
     from .units import Unit
 
     dest_dir = os.path.dirname(dest)
-    needed_disk =  Unit(source_path_size.stdout.split()[0])
+    needed_disk =  Unit(resp.stdout.split()[0])
     available_disk = Unit(f'{shutil.disk_usage(dest_dir).free} B')
 
     if needed_disk > available_disk:
@@ -154,52 +148,11 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.error(msg)
         raise OSError(msg)
 
-    if kubectl.run('test -d', s_path, check=False).returncode == 0:
-        Executable('kubectl').stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
-        return
-
-    if kubectl.run('test -f', s_path, check=False).returncode != 0:
-        logger.warning(f'Source path: {s_path}')
-        s_type = 'not a dir, file or pipe' if kubectl.run('test -p', s_path, check=False).returncode else 'a pipe'
-        logger.warning(f'Source path is {s_type}. Treating as file')
-
-    retries_init = retries
-    while retries:
-        try:
-            kubectl_dump(kubectl.with_('cat', s_path), dest, mode=mode)
-            if mode == 'dry-run':
-                return
-            local_checksum = md5sum(dest)
-            logger.debug(f'{local_checksum=}, comparing with remote')
-            resp = kubectl.run('md5sum', s_path, show_cmd=False, check=False)
-            if resp.returncode:
-                raise RuntimeError(resp.stderr)
-            remote_checksum = resp.stdout.split()[0]
-            if local_checksum != remote_checksum:
-                msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
-                logger.error(msg)
-                raise RuntimeError(msg)
-            logger.debug(f'Downloaded {src} to {dest} on local host. Retries: {retries - retries_init}/{retries_init}')
-            return
-        except Exception as e: # noqa
-            logger.warning(str(e))
-            if os.path.exists(err_file):
-                msg = Path(err_file).read_text()
-                logger.error(msg)
-                os.remove(err_file)
-            if os.path.exists(dest):
-                os.remove(dest)
-            retries -= 1
-            if retries <= 0:
-                raise e
-            time.sleep(10)
+    kubectl.stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
+    return
 
 
-def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
-    remote, t_path = _parse_remote_path(dest)
-
-    exec_ = Executable('exec_', 'kubectl exec', remote)
-
+def _up(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
     source_exists = os.path.exists(src)
     if not source_exists and mode != 'dry-run':
         logger.error(f'FileNotFound: {src}')
@@ -209,48 +162,8 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.warning(f'{src} is empty! Skipping upload')
         return
 
-    if source_exists and os.path.isdir(src):
-        Executable('kubectl').stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
-        return
-
-    cat_part = exec_.with_("-i -- sh -c 'cat > {}'")
-    if show_:
-        logger.info(cat_part.format(t_path) + ' < ' + src)
-
-    if mode == 'dry-run':
-        return
-    retries_init = retries
-    while retries:
-        try:
-            with Path(src).open('rb') as f_in:
-                subprocess_stream(cat_part.format(t_path), stdin=f_in, error_file=err_file, logger_name='plain')
-            local_checksum = md5sum(src)
-            logger.debug(f'{local_checksum=}, comparing with remote')
-            resp = exec_.run('-- md5sum', t_path, check=False)
-            if resp.returncode:
-                raise RuntimeError(resp.stderr)
-            remote_checksum = resp.stdout.split()[0]
-            if local_checksum != remote_checksum:
-                msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
-                logger.error(msg)
-                raise RuntimeError(msg)
-            if os.path.exists(err_file):
-                logger.warning(Path(err_file).read_text())
-                if os.path.getsize(err_file) == 0:
-                    os.remove(err_file)
-            logger.debug(f'Uploaded {src} to {t_path} on {remote}. Retries: {retries - retries_init}/{retries_init}')
-            return
-        except Exception as e: # noqa
-            logger.warning(str(e))
-            if msg := Path(err_file).read_text():
-                logger.warning(msg)
-            os.remove(err_file)
-            retries -= 1
-            if retries <= 0:
-                exec_.run('rm', t_path, check=False)
-                raise RuntimeError(msg)
-            time.sleep(10)
-
+    Executable('kubectl').stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
+    return
 
 
 def print_namespace_events(namespace: str) -> None:
