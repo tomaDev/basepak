@@ -56,13 +56,21 @@ def is_yes(input_: Optional[str | Number]) -> bool:
     return input_.lower() in ('y', 'yes', 'true', '1')
 
 
+TERMINAL_SIZE_FALLBACK = (140, 24)  # fallback for running in cron or non-interactive environments
+_terminal_size_columns = shutil.get_terminal_size(fallback=TERMINAL_SIZE_FALLBACK).columns
+
 rich.reconfigure(
-    width=shutil.get_terminal_size(fallback=(140, 24)).columns,  # fallback for running in cron
+    width=_terminal_size_columns,
     theme=theme.Theme(RICH_THEME_KWARGS_DEFAULT),
     force_terminal=not is_yes(os.environ.get('NO_COLOR')),
 )
 
-Table = partial(table.Table, header_style='bold magenta', box=box.MARKDOWN)
+Table = partial(
+    table.Table,
+    header_style='bold magenta',
+    box=box.MARKDOWN,
+    width=_terminal_size_columns,
+)
 
 
 def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: Optional[int] = 4) -> str:
@@ -144,9 +152,9 @@ SUPPORTED_LOGGERS = {
 }
 
 
-def name_to_handler(name: str, *args, **kwargs) -> logging.StreamHandler:
-    """Retrieve a log stream handler
-    :param name: name of the handler
+def name_to_handler(name: str, *args, **kwargs) -> logging.Handler:
+    """Retrieve a log stream-handler
+    :param name: handler name
     :return: instance of the handler
     :raises ValueError: if the handler name is not supported
     """
@@ -274,7 +282,10 @@ def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
 
     import re
     for pattern, replacement in patterns.items():
-        content = re.sub(pattern, replacement, content)
+        content = re.sub(pattern, replacement,
+                         content) # noqa
 
     with open(path, 'w', encoding='utf-8', errors='replace') as f:
-        f.write(content)
+        f.write(
+            content # noqa
+        )

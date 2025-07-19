@@ -8,6 +8,7 @@ from rich.table import Table
 from basepak.log import (
     LOGGERS,
     SUPPORTED_LOGGERS,
+    TERMINAL_SIZE_FALLBACK,
     MaskingFilter,
     get_logger,
     log_as,
@@ -484,3 +485,13 @@ def test_write_table_no_color(tmp_path, monkeypatch, _table):
     ansi_escape = re.compile(r'\x1b\[')
     assert 'Test message' in content
     assert not ansi_escape.search(content)
+
+
+def test_table_width_in_cron_fallback():
+    """
+    Test that the table width is set to 80 characters in cron fallback mode.
+    """
+    from basepak.log import Table
+    width = TERMINAL_SIZE_FALLBACK[0]
+    table = Table()
+    assert table.width == width, f"Expected table with {width=}, got {table.width}"
