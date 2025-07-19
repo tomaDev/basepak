@@ -164,31 +164,34 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         logger.warning(f'Source path is {s_type}. Treating as file')
 
     retries_init = retries
-    while retries > 0:
+    while retries:
         try:
             kubectl_dump(kubectl.with_('cat', s_path), dest, mode=mode)
             if mode == 'dry-run':
                 return
             local_checksum = md5sum(dest)
             logger.debug(f'{local_checksum=}, comparing with remote')
-            remote_checksum = kubectl.run('md5sum', s_path, show_cmd=False).stdout.split()[0]
+            resp = kubectl.run('md5sum', s_path, show_cmd=False, check=False)
+            if resp.returncode:
+                raise RuntimeError(resp.stderr)
+            remote_checksum = resp.stdout.split()[0]
             if local_checksum != remote_checksum:
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
                 logger.error(msg)
                 raise RuntimeError(msg)
             logger.debug(f'Downloaded {src} to {dest} on local host. Retries: {retries - retries_init}/{retries_init}')
-            break
-        except Exception: # noqa
-            msg = f'Failed to download {src} to {dest}!'
+            return
+        except Exception as e: # noqa
+            logger.warning(str(e))
             if os.path.exists(err_file):
                 msg = Path(err_file).read_text()
                 logger.error(msg)
                 os.remove(err_file)
             if os.path.exists(dest):
                 os.remove(dest)
-            if retries == 0:
-                raise RuntimeError(msg)
             retries -= 1
+            if retries <= 0:
+                raise e
             time.sleep(10)
 
 
@@ -217,13 +220,16 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
     if mode == 'dry-run':
         return
     retries_init = retries
-    while retries > 0:
+    while retries:
         try:
             with Path(src).open('rb') as f_in:
                 subprocess_stream(cat_part.format(t_path), stdin=f_in, error_file=err_file, logger_name='plain')
             local_checksum = md5sum(src)
             logger.debug(f'{local_checksum=}, comparing with remote')
-            remote_checksum = exec_.run('md5sum', t_path).stdout.split()[0]
+            resp = exec_.run('-- md5sum', t_path, check=False)
+            if resp.returncode:
+                raise RuntimeError(resp.stderr)
+            remote_checksum = resp.stdout.split()[0]
             if local_checksum != remote_checksum:
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
                 logger.error(msg)
@@ -233,17 +239,17 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 if os.path.getsize(err_file) == 0:
                     os.remove(err_file)
             logger.debug(f'Uploaded {src} to {t_path} on {remote}. Retries: {retries - retries_init}/{retries_init}')
-            break
+            return
         except Exception as e: # noqa
+            logger.warning(str(e))
             if msg := Path(err_file).read_text():
-                logger.error(msg)
+                logger.warning(msg)
             os.remove(err_file)
+            retries -= 1
             if retries <= 0:
                 exec_.run('rm', t_path, check=False)
                 raise RuntimeError(msg)
-            retries -= 1
-            logger.warning(str(e))
-            time.sleep(5)
+            time.sleep(10)
 
 
 
