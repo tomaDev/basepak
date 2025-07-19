@@ -163,17 +163,20 @@ def _dl(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
         s_type = 'not a dir, file or pipe' if kubectl.run('test -p', s_path, check=False).returncode else 'a pipe'
         logger.warning(f'Source path is {s_type}. Treating as file')
 
+    retries_init = retries
     while retries > 0:
         try:
             kubectl_dump(kubectl.with_('cat', s_path), dest, mode=mode)
             if mode == 'dry-run':
                 return
-            remote_checksum = kubectl.run('md5sum', s_path, show_cmd=False).stdout.split()[0]
             local_checksum = md5sum(dest)
+            logger.debug(f'{local_checksum=}, comparing with remote')
+            remote_checksum = kubectl.run('md5sum', s_path, show_cmd=False).stdout.split()[0]
             if local_checksum != remote_checksum:
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
                 logger.error(msg)
                 raise RuntimeError(msg)
+            logger.debug(f'Downloaded {src} to {dest} on local host. Retries: {retries - retries_init}/{retries_init}')
             break
         except Exception: # noqa
             msg = f'Failed to download {src} to {dest}!'
@@ -213,11 +216,13 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
 
     if mode == 'dry-run':
         return
+    retries_init = retries
     while retries > 0:
         try:
             with Path(src).open('rb') as f_in:
-                subprocess_stream(cat_part.format(t_path), stdin=f_in, error_file=err_file)
+                subprocess_stream(cat_part.format(t_path), stdin=f_in, error_file=err_file, logger_name='plain')
             local_checksum = md5sum(src)
+            logger.debug(f'{local_checksum=}, comparing with remote')
             remote_checksum = exec_.run('md5sum', t_path).stdout.split()[0]
             if local_checksum != remote_checksum:
                 msg = f' {local_checksum=}\n{remote_checksum=}\nChecksum mismatch!'
@@ -227,6 +232,7 @@ def _up(src: str, dest: str, err_file: str, mode: str, show_: bool, logger: logg
                 logger.warning(Path(err_file).read_text())
                 if os.path.getsize(err_file) == 0:
                     os.remove(err_file)
+            logger.debug(f'Uploaded {src} to {t_path} on {remote}. Retries: {retries - retries_init}/{retries_init}')
             break
         except Exception: # noqa
             if msg := Path(err_file).read_text():
@@ -482,7 +488,7 @@ def create_oneliner_job(
     1. Ensure namespace
     2. Ensure PVC (including creating PV if needed)
     3. Create job
-    4. Redact saved job manifest yaml
+    4. Redact saved job manifest YAML
     5. Await job completion (can be separated out to Task validate phase)
 
     :param spec: dict with job parameters
@@ -624,7 +630,7 @@ def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl:
     :param logger: logger object
     :return: updated retry count
     """
-    # kubectl logs --pod-running-timeout=5m should wait for at least one pod running, but it doesn't for some reason
+    # kubectl logs --pod-running-timeout=5m should wait for at least one pod running, but it doesn't for some reason.
     # added retry as a workaround
 
     import subprocess
@@ -700,7 +706,7 @@ def _get_running_pod_manifest(kubectl: Executable, tries: int, retries: int, msg
                               logger: Optional[logging.Logger] = None) -> dict:
     """Get running pod manifest from k8s
     :param kubectl: kubectl Executable object
-    :param tries: number of tries param
+    :param tries: number of tries
     :param retries: dynamic retry counter
     :param msg: error message to raise if failed
     :param logger: logger object
@@ -718,7 +724,7 @@ def _get_running_pod_manifest(kubectl: Executable, tries: int, retries: int, msg
         items = json.loads(result_stdout).get('items')
     except json.decoder.JSONDecodeError:
         return _get_running_pod_manifest(kubectl, tries, retries, 'Failed to decode json', logger)
-    except TypeError as e:  # "'NoneType' object is not subscriptable" error means parsed json is None
+    except TypeError as e:  # "'NoneType' object is not subscriptable" error means parsed JSON is None
         return _get_running_pod_manifest(kubectl, tries, retries, str(e), logger)
     logger_plain = log.get_logger('plain')
     if not items:
@@ -749,7 +755,7 @@ def is_remote_sharing_disk_with_host(  # TODO: create test
     marker_name = f'.{spec.get("NAME") or "default"}-check-is-remote-sharing-disk-with-host-{os.urandom(4).hex()}'
     marker = Path(local_path, marker_name)
     marker.touch()
-    # -1 for single column, -A for all files except ./..
+    # -1 for single column, -A for all files except . / ..
     ls_job_name = create_oneliner_job(spec, f'ls -1A {remote_path or local_path}', 'ls', await_completion=True)
     kubectl = Executable('kubectl', 'kubectl logs --namespace', spec['NAMESPACE'])
     resp = kubectl.run(f'--selector=job-name={ls_job_name}', check=False)
