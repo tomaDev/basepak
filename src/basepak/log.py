@@ -69,7 +69,7 @@ Table = partial(
     table.Table,
     header_style='bold magenta',
     box=box.MARKDOWN,
-    width=_terminal_size_columns,
+    show_edge=False,
 )
 
 
@@ -203,7 +203,11 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
 
 def _write_table_to_file(table_: rich.table.Table) -> None:
     with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
-        w = console.Console(file=f, force_terminal=not is_yes(os.environ.get('NO_COLOR')))
+        w = console.Console(
+            file=f,
+            force_terminal=not is_yes(os.environ.get('NO_COLOR')),
+            width=_terminal_size_columns,
+        )
         w.print(table_)
 
 def _set_log_path() -> str:
