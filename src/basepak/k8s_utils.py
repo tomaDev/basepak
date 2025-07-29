@@ -677,7 +677,7 @@ def is_remote_sharing_disk_with_host(  # TODO: create test
     marker.touch()
     # -1 for single column, -A for all files except . / ..
     ls_job_name = create_oneliner_job(spec, f'ls -1A {remote_path or local_path}', 'ls', await_completion=True)
-    kubectl = Executable('kubectl', 'kubectl logs --namespace', spec['NAMESPACE'])
+    kubectl = Executable('kubectl', 'kubectl logs --tail=-1 --namespace', spec['NAMESPACE'])
     resp = kubectl.run(f'--selector=job-name={ls_job_name}', check=False)
     marker.unlink()
     return marker_name in resp.stdout.splitlines()
