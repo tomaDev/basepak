@@ -310,13 +310,13 @@ def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[s
         if status == 'Terminating':
             logger.warning(f'{namespace=}, {status=}. Awaiting termination and recreating it')
             kubectl.stream('wait namespace', namespace, '--for=delete --timeout=600s')
-            return ensure_namespace(mode, logger, namespace=namespace)
+            return ensure_namespace(mode, logger, namespace=namespace, file=file)
         return namespace
     if namespace_exists.stderr.startswith(RESOURCE_NOT_FOUND):
         logger.warning(f'{namespace=} not found, creating...')
         resp = kubectl.run('create namespace', namespace, ' --dry-run=client' if mode == 'dry-run' else '', check=False)
         if 'AlreadyExists' in resp.stderr:
-            logger.warning(f'namespace not found on get, but errored on creation: {resp.stderr}\n')
+            return ensure_namespace(mode, logger, namespace=namespace, file=file)
         elif resp.returncode:
             logger.warning(resp.stdout)
             raise RuntimeError(f'{namespace=} failed to create!\n{resp.stderr}')
