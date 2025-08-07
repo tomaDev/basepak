@@ -52,9 +52,9 @@ def kubectl_dump(command: PathLike | Executable, output_file: PathLike, mode: st
     error_file = f'{output_file}.err'
     subprocess_stream(command, output_file=output_file, error_file=error_file)
 
-    logger.warning(Path(error_file).read_text())
-
-    if os.path.getsize(error_file) == 0:
+    if err_text := Path(error_file).read_text().strip():
+        logger.warning(err_text)
+    else:
         os.remove(error_file)
 
 
@@ -158,10 +158,6 @@ def _up(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
         logger.error(f'FileNotFound: {src}')
         raise FileNotFoundError(f'{src} does not exist')
 
-    if source_exists and os.path.getsize(src) == 0:
-        logger.warning(f'{src} is empty! Skipping upload')
-        return
-
     Executable('kubectl').stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
     return
 
@@ -255,51 +251,15 @@ def get_data_from_secret(name: str, key: Optional[str] = None, namespace: Option
     cmd = 'get secret ' + name + ' --output jsonpath={.data' + f'.{key}' if key else '' + '}'
     return kubectl.run(cmd).stdout
 
-def get_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str) -> str:
-    """Get namespace from file, create if not present in k8s
-    :param file: file to get namespace from
-    :param logger: logger object
-    :param mode: execution mode
-    :return: namespace
-    """
-    file_path = Path(file)
-    namespace_from_file = file_path.stem.split('_')[-1]
-    if os.path.getsize(str(file)) == 0:
-        logger.warning(f'File {file} is empty')
-        return namespace_from_file
-    namespace = ''
-    try:
-        with file_path.open('r') as f:
-            content = json.load(f)
-            try:
-                namespace = content['items'][0]['metadata']['namespace']
-            except KeyError:  # single item
-                namespace = content['metadata']['namespace']
-            except IndexError:  # empty list
-                return namespace_from_file
-    except json.decoder.JSONDecodeError as e:
-        logger.warning(f'JSONDecodeError: {e}. This may happen if the file is not json')
-    namespace = namespace or namespace_from_file
-    if namespace == file_path.stem:
-        logger.warning(f'Inferred namespace equals filename ({namespace}), which is suspect')
-        if mode == 'normal':
-            from . import confirm
-            confirm.default('Namespace will be created if not present in k8s. Continue?')
-    return namespace
 
-
-def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None,
-                     file: Optional[PathLike] = None) -> str:
+def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None) -> str:
     """Ensure namespace exists in k8s, create if not present
     :param mode: execution mode
     :param logger: logger object
     :param namespace: namespace string
-    :param file: file to get namespace from. If specified, namespace param is ignored
     :return: namespace
     """
     kubectl = Executable('kubectl')
-    if file:
-        namespace = get_namespace_from_file(file, logger, mode)
     namespace_exists = kubectl.run('get namespace', namespace, check=False)
     if namespace_exists.returncode == 0:  # success
         return namespace
