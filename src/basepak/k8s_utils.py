@@ -252,20 +252,74 @@ def get_data_from_secret(name: str, key: Optional[str] = None, namespace: Option
     return kubectl.run(cmd).stdout
 
 
-def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None) -> str:
+def _get_namespace_from_file(file: str | Path, logger: logging.Logger, mode: str) -> str:
+    """Get namespace from file, create if not present in k8s
+    :param file: file to get namespace from
+    :param logger: logger object
+    :param mode: execution mode
+    :return: namespace
+    """
+    file_path = Path(file)
+    namespace_from_file = file_path.stem.split('_')[-1]
+    file_content = file_path.read_text().strip()
+    if not file_content:
+        logger.warning(f'File {file} is empty! Using value from filename..')
+        return namespace_from_file
+    try:
+        content_j = json.loads(file_content)
+    except json.decoder.JSONDecodeError as e:
+        logger.warning(f'JSONDecodeError: {e}. This may happen if the file is not json. Using value from filename..')
+        namespace = namespace_from_file
+        if namespace == file_path.stem:
+            logger.warning(f'Inferred namespace equals filename ({namespace}), which is suspect')
+            if mode == 'normal':
+                from . import confirm
+                confirm.default('Namespace will be created if not present in k8s. Continue?')
+        return namespace
+    try:
+        return content_j['items'][0]['metadata']['namespace']
+    except KeyError:  # single item
+        try:
+            return content_j['metadata']['namespace']
+        except KeyError:  # empty item
+            return namespace_from_file
+    except IndexError:  # empty list of k8s items
+        return namespace_from_file
+    except TypeError: # empty json list (TypeError: list indices must be integers or slices, not str)
+        return namespace_from_file
+
+
+def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[str] = None,
+                     file: Optional[PathLike] = None) -> str:
     """Ensure namespace exists in k8s, create if not present
     :param mode: execution mode
     :param logger: logger object
     :param namespace: namespace string
+    :param file: file to get namespace from. If specified, namespace param is ignored
     :return: namespace
     """
     kubectl = Executable('kubectl')
-    namespace_exists = kubectl.run('get namespace', namespace, check=False)
+    if file:
+        namespace = _get_namespace_from_file(file, logger, mode)
+    namespace_exists = kubectl.run('get namespace', namespace, '-ojsonpath={.status.phase}', check=False)
     if namespace_exists.returncode == 0:  # success
+        status = namespace_exists.stdout.strip()
+        if status not in  ['Active', 'Terminating']:
+            logger.warning(f'{namespace=}, {status=}, expected either "Active", "Terminating" or missing!')
+            raise RuntimeError(f'{namespace=}, {status=}, expected either "Active", "Terminating" or missing!')
+        if status == 'Terminating':
+            logger.warning(f'{namespace=}, {status=}. Awaiting termination and recreating it')
+            kubectl.stream('wait namespace', namespace, '--for=delete --timeout=600s')
+            return ensure_namespace(mode, logger, namespace=namespace)
         return namespace
     if namespace_exists.stderr.startswith(RESOURCE_NOT_FOUND):
         logger.warning(f'{namespace=} not found, creating...')
-        kubectl.stream('create namespace', namespace, ' --dry-run=client' if mode == 'dry-run' else '')
+        resp = kubectl.run('create namespace', namespace, ' --dry-run=client' if mode == 'dry-run' else '', check=False)
+        if 'AlreadyExists' in resp.stderr:
+            logger.warning(f'namespace not found on get, but errored on creation: {resp.stderr}\n')
+        elif resp.returncode:
+            logger.warning(resp.stdout)
+            raise RuntimeError(f'{namespace=} failed to create!\n{resp.stderr}')
         return namespace
     if not namespace_exists.stderr.startswith('Error from server (Forbidden)'):
         raise RuntimeError(namespace_exists.stderr)
@@ -290,6 +344,7 @@ def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
         logger.info('Creating persistent volume claim')
         from .templates import persistent_volume_claim
         _, path = persistent_volume_claim.generate_template(spec)
+        ensure_namespace(spec['MODE'], logger, namespace=spec['NAMESPACE'])
         kubectl.stream('create --filename', path)
 
     pvc_desired_states = [x.lower() for x in spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATES') or ['Bound']]
