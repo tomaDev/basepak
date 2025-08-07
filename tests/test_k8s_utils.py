@@ -83,6 +83,100 @@ def test_ensure_namespace(mode):
     # teardown
     assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True, check=False).returncode == 0
 
+# @pytest.mark.parametrize('empty_type', ['{}', ''])
+@pytest.mark.parametrize('empty_type', ['{}', ''])
+@pytest.mark.parametrize('mode', SUPPORTED_MODES)
+def test_ensure_namespace_with_file_empty(tmp_path, mode, empty_type):
+    ns = _get_fresh_resource_name('ns', mode)
+
+    file = tmp_path / f'secrets_{ns}.json'
+    file.write_text(empty_type)
+    # create
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    # exists
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True, check=False).returncode == 0
+
+
+@pytest.mark.parametrize('mode', SUPPORTED_MODES)
+def test_ensure_namespace_with_file_item(tmp_path, mode):
+    ns = _get_fresh_resource_name('ns', mode)
+
+    file = tmp_path / f'secrets_{ns}.json'
+    file.write_text("""{
+            "apiVersion": "v1",
+            "data": {
+                "val": "x"
+            },
+            "kind": "Secret",
+            "metadata": {
+                "name": "test",
+                "namespace":""" f'"{ns}",'"""
+            },
+            "type": "Opaque"
+        }"""
+    )
+    # create
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    # exists
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True, check=False).returncode == 0
+
+
+@pytest.mark.parametrize('mode', SUPPORTED_MODES)
+def test_ensure_namespace_with_file_list(tmp_path, mode):
+    ns = _get_fresh_resource_name('ns', mode)
+
+    file = tmp_path / f'secrets_{ns}.json'
+    file.write_text("""{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "v1",
+            "data": {
+                "USERNAME": "x"
+            },
+            "kind": "Secret",
+            "metadata": {
+                "name": "test",
+                "namespace":""" f'"{ns}",'"""
+            },
+            "type": "Opaque"
+        },
+        {
+            "apiVersion": "v1",
+            "data": {
+                "USERNAME": "x"
+            },
+            "kind": "Secret",
+            "metadata": {
+                "name": "test",
+                "namespace": "iguazio-backup",
+            },
+            "type": "Opaque"
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""}}"""
+    )
+    # create
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    # exists
+    result = k8s_utils.ensure_namespace(mode, logging.getLogger(), file=file)
+    assert result == ns
+
+    assert subprocess.run(f'kubectl delete namespace {ns} --ignore-not-found', shell=True, check=False).returncode == 0
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_ensure_pvc(tmp_path, mode):
@@ -130,30 +224,26 @@ def test_ensure_pvc_bind(tmp_path, mode):
     subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True, check=False)
 
 @pytest.mark.parametrize(
-    "mock_partitions,test_path,expected,raises_error", [
-        ([MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/home/user/file.txt', True, None),
-        ([MagicMock(mountpoint='/', fstype='xfs', device='/dev/sdb2')], '/var/log/messages', True, None),
+    "mock_partitions,test_path,expected", [
+        ([MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/home/user/file.txt', True),
+        ([MagicMock(mountpoint='/', fstype='xfs', device='/dev/sdb2')], '/var/log/messages', True),
         ([MagicMock(mountpoint='/mnt/remote_share', fstype='nfs', device='server:/export/path'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/remote_share/data', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/remote_share/data', False),
         ([MagicMock(mountpoint='/mnt/windows_share', fstype='cifs', device='//server/share'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/windows_share/file.docx', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/windows_share/file.docx', False),
         ([MagicMock(mountpoint='/mnt/ssh_access', fstype='fuse.sshfs', device='host:/remote_path'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/ssh_access/data', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/ssh_access/data', False),
         ([MagicMock(mountpoint='/mnt/s3', fstype='fuse.s3fs', device='s3.amazonaws.com:/mybucket'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/s3/documents/report.pdf', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/s3/documents/report.pdf', False),
         ([MagicMock(mountpoint='/mnt/gluster_volume', fstype='glusterfs', device='gluster-node1:/gv0'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/gluster_volume/data', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/gluster_volume/data', False),
         ([MagicMock(mountpoint='/mnt/cephfs', fstype='ceph', device='mon1,mon2,mon3:/'),
-          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False, None),
+          MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False),
     ]
 )
-def test_is_path_local_best_effort(mock_partitions, test_path, expected, raises_error):
+def test_is_path_local_best_effort(mock_partitions, test_path, expected):
     with patch('psutil.disk_partitions', return_value=mock_partitions):
-        if raises_error:
-            with pytest.raises(raises_error):
-                k8s_utils.is_path_local_best_effort(test_path)
-        else:
-            assert k8s_utils.is_path_local_best_effort(test_path) is expected
+        assert k8s_utils.is_path_local_best_effort(test_path) is expected
 
 def test_kubectl_upload_file_dry_run(tmp_path):
     with _fresh_pod() as pod:
