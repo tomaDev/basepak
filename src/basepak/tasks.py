@@ -110,8 +110,10 @@ class Task(ABC):
                     start_time = datetime.datetime.now()
                     try:
                         result = func(self, *args, **kwargs)
-                        notes = str(datetime.datetime.now() - start_time)
                         status = 'succeeded'
+                        notes = str(datetime.datetime.now() - start_time)
+                        if not isinstance(result, bool):
+                            notes = f'{notes}, {result}'
                     except KeyboardInterrupt:
                         logger.warning('KeyboardInterrupt')
                         sys.exit(1)

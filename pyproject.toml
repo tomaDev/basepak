@@ -53,6 +53,7 @@ path = ".venv"  # should match to uv default venv path
 lock = 'uv lock'
 upgrade = 'uv sync --upgrade'
 release = 'VERSION="$(hatch version)"; git tag $VERSION && git push origin $VERSION'
+scan = 'bandit --recursive src/basepak --configfile pyproject.toml'
 
 [tool.hatch.envs.hatch-test]
 dependencies = [
@@ -65,22 +66,6 @@ install_project = true
 randomize = true
 parallel = true
 
-[tool.hatch.envs.scan]
-dependencies = [
-    'bandit',
-]
-install_project = true
-
-[tool.hatch.envs.types]
-dependencies = [
-    'mypy>=1.0.0',
-    'types-requests',
-    'types-click',
-    'types-psutil',
-]
-[tool.hatch.envs.types.scripts]
-check = 'mypy --install-types --pretty --non-interactive {args:src/basepak tests}'
-
 [tool.bandit]
 skips = [
     'B110',  # try_except_pass
@@ -89,9 +74,6 @@ skips = [
     'B602',  # subprocess_popen_with_shell_equals_true
     'B603',  # subprocess_without_shell_equals_true
 ]
-
-[tool.hatch.envs.scan.scripts]
-scan = 'bandit --recursive src/basepak --configfile pyproject.toml'
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ['3.9', '3.10', '3.11', '3.12', '3.13']
