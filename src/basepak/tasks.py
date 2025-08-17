@@ -92,6 +92,7 @@ class Task(ABC):
                 import requests
 
                 from .stats import Tracker
+                from .time import timedelta_to_human_readable as human_readable
                 self.set_phase(func.__name__)
                 self.post_status('started')
                 phase = self.get_phase
@@ -111,8 +112,8 @@ class Task(ABC):
                     try:
                         result = func(self, *args, **kwargs)
                         status = 'succeeded'
-                        notes = str(datetime.datetime.now() - start_time)
-                        if not isinstance(result, bool):
+                        notes = human_readable(datetime.datetime.now() - start_time)
+                        if result and not isinstance(result, bool):
                             notes = f'{notes}, {result}'
                     except KeyboardInterrupt:
                         logger.warning('KeyboardInterrupt')

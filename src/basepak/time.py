@@ -93,3 +93,31 @@ def sleep(seconds: float) -> None:
     if seconds < 0:
         seconds = 0
     time.sleep(seconds)
+
+
+def timedelta_to_human_readable(td: timedelta) -> str:
+    """Convert a timedelta object to a human-readable string
+    :param td: timedelta object
+    :return: human-readable string representation of the timedelta
+    """
+    total_seconds = int(td.total_seconds())
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    milliseconds = td.microseconds // 1000
+
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds and not (days or hours):
+        parts.append(f"{seconds}s")
+    if milliseconds and not (days or hours or minutes or seconds):
+        parts.append(f"{milliseconds}ms")
+    if not parts:
+        parts.append('0ms')
+
+    return ''.join(parts).rjust(9, ' ')
