@@ -98,7 +98,7 @@ def sleep(seconds: float) -> None:
 def timedelta_to_human_readable(td: timedelta) -> str:
     """Convert a timedelta object to a human-readable string
     :param td: timedelta object
-    :return: human-readable string representation of the timedelta
+    :return: human-readable string of the timedelta
     """
     total_seconds = int(td.total_seconds())
     days, remainder = divmod(total_seconds, 86400)
