@@ -60,7 +60,7 @@ TERMINAL_SIZE_FALLBACK = (140, 24)  # fallback for running in cron or non-intera
 _terminal_size_columns = shutil.get_terminal_size(fallback=TERMINAL_SIZE_FALLBACK).columns
 
 rich.reconfigure(
-    # width=_terminal_size_columns,
+    width=_terminal_size_columns,
     theme=theme.Theme(RICH_THEME_KWARGS_DEFAULT),
     force_terminal=not is_yes(os.environ.get('NO_COLOR')),
     soft_wrap=True,
@@ -189,7 +189,7 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
 
     try:
         file_console = console.Console(
-            # width=shutil.get_terminal_size(fallback=(140, 24)).columns,
+            width=_terminal_size_columns,
             force_terminal=not is_yes(os.environ.get('NO_COLOR')),
             soft_wrap=True,
         )
@@ -206,10 +206,10 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
 def _write_table_to_file(table_: rich.table.Table) -> None:
     with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
         w = console.Console(
-            file=f,
+            width=_terminal_size_columns,
             force_terminal=not is_yes(os.environ.get('NO_COLOR')),
-            # width=_terminal_size_columns,
             soft_wrap=True,
+            file=f,
         )
         w.print(table_)
 
