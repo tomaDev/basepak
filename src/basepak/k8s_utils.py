@@ -328,7 +328,11 @@ def ensure_namespace(mode: str, logger: logging.Logger, *, namespace: Optional[s
     raise PermissionError(namespace_exists.stderr)
 
 
-def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
+def ensure_pvc(
+        spec: dict,
+        logger: logging.Logger,
+        _retries: int = 1  # noqa internal undocumented parameter for retrying PVC creation
+) -> None:
     """Ensure PVC exists in k8s, create if not present
     :param spec: dict with PVC parameters
     :param logger: logger object
@@ -345,9 +349,15 @@ def ensure_pvc(spec: dict, logger: logging.Logger) -> None:
         from .templates import persistent_volume_claim
         _, path = persistent_volume_claim.generate_template(spec)
         ensure_namespace(spec['MODE'], logger, namespace=spec['NAMESPACE'])
-        kubectl.stream('create --filename', path)
+        import subprocess
+        try:
+            kubectl.stream('create --filename', path)
+        except subprocess.CalledProcessError as e:
+            if _retries and 'terminated' in e.stderr:
+                log.get_logger(name='plain').error(e.stderr)
+                ensure_pvc(spec, logger, 0)
 
-    pvc_desired_states = [x.lower() for x in spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATES') or ['Bound']]
+    pvc_desired_states = [x for x in spec.get('PERSISTENT_VOLUME_CLAIM_DESIRED_STATES') or ['Bound']]
     pvc_name = spec['PERSISTENT_VOLUME_CLAIM_NAME']
 
     pvc_phase_jsonpath = 'jsonpath="{.status.phase}"'
