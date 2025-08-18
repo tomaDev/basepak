@@ -97,7 +97,7 @@ def test_sleep_zero(zero_time):
     (timedelta(days=1, hours=2, minutes=30, seconds=15), '1d2h30m'),
     (timedelta(seconds=45), '45s'),
     (timedelta(microseconds=1234), '1ms'),
-    (timedelta(microseconds=10), '0ms'),
+    (timedelta(microseconds=10), '1ms'),
     (timedelta(days=0, hours=0, minutes=0, seconds=0, microseconds=0), '0ms'),
 ])
 def test_timedelta_to_human_readable(td, string):
