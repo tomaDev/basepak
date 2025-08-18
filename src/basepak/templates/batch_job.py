@@ -81,8 +81,7 @@ def generate_template(
                 'spec': {
                     'containers': [{
                         'name': params.get('CONTAINER_NAME') or job_name,
-                        # stable instead of latest, to avoid unnecessary pulls
-                        'image': params.get('JOB_IMAGE') or params.get('DEFAULT_IMAGE') or 'busybox:stable',
+                        'image': params.get('JOB_IMAGE') or params.get('DEFAULT_IMAGE') or consts.DEFAULT_IMAGE,
                         'volumeMounts': [{
                                 'name': volume_name,
                                 'mountPath': params['JOB_MOUNT_PATH'],

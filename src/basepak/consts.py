@@ -87,7 +87,7 @@ class FieldSelectors(metaclass=ConstMeta):
               'metadata.name!=dex-web-server-ca,' \
               'metadata.name!=monitoring-etcd-ssl'
 
-
+DEFAULT_IMAGE = 'public.ecr.aws/docker/library/busybox:stable'
 SECRET_NAME_BASE = 'platform-users'  # nosec B105: hardcoded secret name
 IS_PURGEABLE_KEY = 'purgeable'
 DEFAULT_LABELS = {'basepak/version': package_version}
