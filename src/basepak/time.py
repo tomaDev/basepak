@@ -104,20 +104,20 @@ def timedelta_to_human_readable(td: timedelta) -> str:
     days, remainder = divmod(total_seconds, 86400)
     hours, remainder = divmod(remainder, 3600)
     minutes, seconds = divmod(remainder, 60)
-    milliseconds = td.microseconds // 1000
 
     parts = []
     if days:
-        parts.append(f"{days}d")
+        parts.append(f'{days}d')
     if hours:
-        parts.append(f"{hours}h")
+        parts.append(f'{hours}h')
     if minutes:
-        parts.append(f"{minutes}m")
+        parts.append(f'{minutes}m')
     if seconds and not (days or hours):
-        parts.append(f"{seconds}s")
-    if milliseconds and not (days or hours or minutes or seconds):
-        parts.append(f"{milliseconds}ms")
+        parts.append(f'{seconds}s')
     if not parts:
-        parts.append('0ms')
+        if milliseconds := td.microseconds // 1000:
+            parts.append(f'{milliseconds}ms')
+    if not parts:
+        parts.append(f'{1 if td.microseconds else 0}ms')
 
-    return ''.join(parts).rjust(9, ' ')
+    return ''.join(parts).rjust(6, ' ')
