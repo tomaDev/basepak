@@ -57,6 +57,7 @@ def generate_template(
                         'command': params.get('COMMAND') or [],
                         'args': params.get('ARGS') or [],
                         'env': params.get('ENV_VARS') or [],
+                        **({'imagePullPolicy': params['IMAGE_PULL_POLICY']} if params.get('IMAGE_PULL_POLICY') else {}),
                         'securityContext': {
                             'capabilities': {
                                 'add': ['CAP_DAC_READ_SEARCH'],
@@ -68,7 +69,5 @@ def generate_template(
                         }}],
                     **affinity,
                 }}}}
-    if overrides := params.get('-dsOverrides'):
-        template_daemonset.update(overrides)
 
     return template_daemonset['metadata']['name'], configer.generate(template_daemonset, dump_folder, filename=filename)
