@@ -27,6 +27,8 @@ def generate_template(params: Mapping) -> tuple[str, str]:
             }
         }
     }
+    if overrides := params.get('-pvcOverrides'):
+        template_persistent_volume_claim.update(overrides)
 
     path_to_template = configer.generate(template_persistent_volume_claim, params['GENERATED_MANIFESTS_FOLDER'])
     return template_persistent_volume_claim['metadata']['name'], path_to_template
