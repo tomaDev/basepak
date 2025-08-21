@@ -29,7 +29,6 @@ POD_SPEC_DEFAULT = {
             ]}}
 }
 
-
 def generate_template(
         params: Mapping, dump_folder: Optional[str | Path] = None, filename: Optional[str] = None
 ) -> tuple[str, str]:
@@ -89,6 +88,7 @@ def generate_template(
                         'command': params.get('COMMAND') or [],
                         'args': params.get('ARGS') or [],
                         'env': params.get('ENV_VARS') or [],
+                        **({'imagePullPolicy': params['IMAGE_PULL_POLICY']} if params.get('IMAGE_PULL_POLICY') else {}),
                         **security_context,
                     }],
                     **pod_spec,
@@ -97,7 +97,5 @@ def generate_template(
                         'persistentVolumeClaim': {
                             'claimName': params['PERSISTENT_VOLUME_CLAIM_NAME'],
                         }}]}}}}
-    if overrides := params.get('-batchJobOverrides'):
-        template_batch_job.update(overrides)
 
     return job_name, configer.generate(template_batch_job, dump_folder, filename=filename)
