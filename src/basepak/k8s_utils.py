@@ -446,7 +446,6 @@ def create_oneliner_job(
     :return: job name
     """
     from . import strings
-    from .templates import batch_job
 
     logger = log.get_logger(name=spec.get('LOGGER_NAME'), level=spec.get('LOG_LEVEL') or 'INFO')
     ensure_pvc(spec, logger)
@@ -469,7 +468,16 @@ def create_oneliner_job(
         spec['JOB_NAME'] = trunc(spec['JOB_NAME'] + f'-{suf}')
 
     manifests_folder = spec.setdefault('GENERATED_MANIFESTS_FOLDER', spec['CACHE_FOLDER'])
+
+    from .templates import batch_job, recursive_has_pair
+
     spec['JOB_NAME'], path = batch_job.generate_template(spec, manifests_folder, filename=container_name)
+    if wait_offset := spec.get('WAIT_BEFORE_ALWAYS_PULL', 0.1):
+        if recursive_has_pair(spec, 'PULL_IMAGE_POLICY', 'Always'):
+            from random import random
+            sleep = wait_offset + random() * 10
+            logger.info(f'pullImagePolicy=Always detected!\n{sleep=}s to avoid thundering herd DDoS')
+            time.sleep(sleep)
     kubectl.stream('create --filename', path)
     log.redact_file(path, redact)
 
