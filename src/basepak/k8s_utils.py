@@ -472,8 +472,8 @@ def create_oneliner_job(
     from .templates import batch_job, recursive_has_pair
 
     spec['JOB_NAME'], path = batch_job.generate_template(spec, manifests_folder, filename=container_name)
-    if wait_offset := spec.get('WAIT_BEFORE_ALWAYS_PULL', 0.1):
-        if recursive_has_pair(spec, 'PULL_IMAGE_POLICY', 'Always'):
+    if wait_offset := spec.get('WAIT_BEFORE_IMAGE_PULL_POLICY_ALWAYS', 0.1):
+        if recursive_has_pair(spec, 'IMAGE_PULL_POLICY', 'Always'):
             from random import random
             sleep = wait_offset + random() * 10  # nosec CWE-330
             logger.info(f'pullImagePolicy=Always detected!\n{sleep=}s to avoid thundering herd DDoS')
