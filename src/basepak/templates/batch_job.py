@@ -97,5 +97,7 @@ def generate_template(
                         'persistentVolumeClaim': {
                             'claimName': params['PERSISTENT_VOLUME_CLAIM_NAME'],
                         }}]}}}}
+    if overrides := params.get('-batchJobOverrides'):
+        template_batch_job.update(overrides)
 
     return job_name, configer.generate(template_batch_job, dump_folder, filename=filename)

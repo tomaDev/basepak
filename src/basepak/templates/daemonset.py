@@ -68,5 +68,7 @@ def generate_template(
                         }}],
                     **affinity,
                 }}}}
+    if overrides := params.get('-dsOverrides'):
+        template_daemonset.update(overrides)
 
     return template_daemonset['metadata']['name'], configer.generate(template_daemonset, dump_folder, filename=filename)
