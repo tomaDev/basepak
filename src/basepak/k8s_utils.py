@@ -476,7 +476,7 @@ def create_oneliner_job(
         if recursive_has_pair(spec, 'IMAGE_PULL_POLICY', 'Always'):
             from random import random
             sleep = wait_offset + random() * 10  # nosec CWE-330
-            logger.info(f'pullImagePolicy=Always detected!\n{sleep=}s to avoid thundering herd DDoS')
+            logger.info(f'pullImagePolicy=Always detected!\n{sleep=:.2f}s to avoid thundering herd DDoS')
             time.sleep(sleep)
     kubectl.stream('create --filename', path)
     log.redact_file(path, redact)
