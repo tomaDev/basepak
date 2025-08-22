@@ -864,7 +864,7 @@ def set_image_pull_policy_default(spec: dict, refresh_rate_default: float):
     spec.setdefault('IMAGE_PULL_POLICY', 'Always')
 
     wait_offset = spec.get('WAIT_BEFORE_IMAGE_PULL_POLICY_ALWAYS', 0.1)
-    if not (wait_offset or recursive_has_pair(spec, 'IMAGE_PULL_POLICY', 'Always')):
+    if not (wait_offset and recursive_has_pair(spec, 'IMAGE_PULL_POLICY', 'Always')):
         return
     sleep = wait_offset + random() * 10  # nosec CWE-330
     logger = log.get_logger()
