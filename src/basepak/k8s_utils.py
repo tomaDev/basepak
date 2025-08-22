@@ -134,20 +134,15 @@ def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
     # Option `--pod-running-timeout` in kubectl run/exec doesn't help - exec errors out with:
     #  error: Internal error occurred: unable to upgrade connection: container not found ("container-name")
     # Apparently pod gets Running status without waiting for a running container. So must wait explicitly
-    # Unfortunately kubectl wait command doesn't accept the container option, thus the following monstrosity ensues
+    # Unfortunately kubectl wait command doesn't accept the container option, adding another wrinkle to the opt parse
     waitable = remote
-    if '--container ' in remote:
-        i = remote.index('--container ')
-        waitable = remote[:i] + remote[i:].split(maxsplit=2)[2]
-    elif '--container' in remote:
-        i = remote.index('--container')
-        waitable = remote[:i] + remote[i:].split(maxsplit=1)[1]
-    elif '-c ' in remote:
-        i = remote.index('-c ')
-        waitable = remote[:i] + remote[i:].split(maxsplit=2)[2]
-    elif '-c' in remote:
-        i = remote.index('-c')
-        waitable = remote[:i] + remote[i:].split(maxsplit=1)[1]
+    options = ['--container', '-c']
+    if container_option := next((x for x in remote.split() if x in options), None):
+        i = remote.index(container_option)
+        waitable = remote[:i] + remote[i:].split(maxsplit=2)[-1]
+    elif container_option := next((x for x in waitable.split() if any((y for y in options if x.startswith(y)))), None):
+        i = remote.index(container_option)
+        waitable = remote[:i] + remote[i:].split(maxsplit=1)[-1]
     kubectl.stream('wait --for=condition=ready pod --timeout=120s', waitable)
 
     resp = kubectl.run('exec', remote, '-- du -sh', s_path, check=False)

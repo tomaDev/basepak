@@ -269,7 +269,7 @@ def test_kubectl_upload_download_file(tmp_path, mode):
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('test content')
 
-        remote_path = f'--container {pod} {pod}:/tmp/file'
+        remote_path = f'{pod}:/tmp/file --container {pod} '
         # upload
         k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode, retries=1)
 
@@ -294,7 +294,7 @@ def test_get_kubectl_version():
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
     with _fresh_pod() as pod:
-        remote_path = f'{pod}:/tmp/dir'
+        remote_path = f'-c{pod} {pod}:/tmp/dir'
         local_dir = tmp_path / 'dir'
         local_dir.mkdir()
         for i in range(100):
