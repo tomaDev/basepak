@@ -130,6 +130,11 @@ def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
     remote, s_path = _parse_remote_path(src)
 
     kubectl = Executable('kubectl')
+
+    # Option `--pod-running-timeout` in kubectl run/exec doesn't help - exec errors out with:
+    #  error: Internal error occurred: unable to upgrade connection: container not found ("container-name")
+    # Apparently pod gets Running status without waiting for a running container. So must wait explicitly
+    kubectl.stream('wait --for=condition=ready pod --timeout=120s', remote)
     resp = kubectl.run('exec', remote, '-- du -sh', s_path, check=False)
     if resp.returncode:
         logger.error(resp.stderr)
@@ -776,3 +781,96 @@ def is_path_local_best_effort(path: str | Path) -> bool:
         return False
 
     return True
+
+
+def fetch_from_image(namespace: str, image: str, source, target: str, mode: str) -> None:
+    logger = log.get_logger()
+    ensure_namespace(mode, logger, namespace=namespace)
+    kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
+
+    from random import getrandbits
+    pod_name = Path(target).name.split('.', maxsplit=1)[0] + '-temp-' + str(getrandbits(16))
+
+    kubectl.stream('delete pod --ignore-not-found --wait', pod_name, mode=mode)
+    kubectl.stream('run --image-pull-policy=Always --image', image, pod_name, '--command -- sleep 3600', mode=mode)
+
+    if mode == 'dry-run':
+        return
+
+    kubectl_cp(f'--{namespace=} {pod_name}:{source}', target, mode=mode)
+    kubectl.stream('delete pod --ignore-not-found --wait=false', pod_name, mode=mode)
+
+
+def prep_binary(mode: str, spec: dict, name: str, refresh_rate_default) -> str:
+    """Locate a usable binary, fetch from image if missing. Order of precedence:
+
+    1. name in manifest as {name.upper()}_PATH or {name}Path
+    2. name in PATH
+    3. name in temp_dir
+    4. name in provided k8s image
+
+    :param mode: execution mode
+    :param spec: spec dict
+    :param name: name of the binary
+    :param refresh_rate_default: the rate at which binary will be refreshed from k8s image pull
+    :raises: ValueError if path not found
+    :raises: PermissionError if path not executable
+    """
+    import shutil
+    path = spec.get(f'{name}_PATH'.upper()) or spec.get(f'{name}Path') or shutil.which(name)
+
+    if not path:
+        temp_dir = spec['CACHE_FOLDER']
+        image = spec['JOB_IMAGE']
+        namespace = spec['NAMESPACE']
+        path_on_image = spec['PATH_ON_IMAGE']
+        image_pull_policy = spec.get('IMAGE_PULL_POLICY')
+
+        logger = log.get_logger()
+        logger.warning(f'{name} path not set in manifest or found in PATH. Checking in temp dir')
+        path = os.path.join(temp_dir, name)
+
+        set_image_pull_policy_default(spec, refresh_rate_default)
+        if image_pull_policy == 'Always':
+            logger.warning(f'Force updating from k8s image')
+            swap_path = path + '.swap'
+            fetch_from_image(namespace, image, path_on_image, swap_path, mode)
+            if mode == 'dry-run':
+                return path
+            shutil.move(swap_path, path)
+        if not os.path.exists(path):
+            logger.warning(f'{name} path not found in temp dir, fetching from k8s image')
+            fetch_from_image(namespace, image, path_on_image, path, mode)
+            if mode == 'dry-run':
+                return path
+    if not path:
+        raise ValueError(f'{name} executable not found')
+    if not os.path.isabs(path):
+        path = os.path.abspath(path)
+    if not os.access(path, os.X_OK):
+        import subprocess
+        subprocess.run(f'chmod +x {path}', shell=True)
+    if not os.access(path, os.X_OK):
+        raise PermissionError(f'{name} path is not executable: {path}')
+    return path
+
+
+def set_image_pull_policy_default(spec: dict, refresh_rate_default: float):
+    from random import random
+    from basepak.templates import recursive_has_pair
+
+    if random() * 99.99 > spec.get('REFRESH_RATE', refresh_rate_default):
+        return
+    spec.setdefault('IMAGE_PULL_POLICY', 'Always')
+
+    wait_offset = spec.get('WAIT_BEFORE_IMAGE_PULL_POLICY_ALWAYS', 0.1)
+    if not (wait_offset or recursive_has_pair(spec, 'IMAGE_PULL_POLICY', 'Always')):
+        return
+    sleep = wait_offset + random() * 10  # nosec CWE-330
+    logger = log.get_logger()
+    logger.info(f'pullImagePolicy=Always detected!\n{sleep=:.2f}s to avoid thundering herd DDoS')
+    if spec.get('MODE', '') == 'dry-run':
+        logger.info('Dry run. Skipping wait..')
+        return
+
+    time.sleep(sleep)

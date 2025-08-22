@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import os
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +11,7 @@ import pytest  # type: ignore
 from basepak import k8s_utils
 from basepak.time import sleep
 from basepak.versioning import Version
+from basepak import consts
 
 SUPPORTED_MODES = ['dry-run', 'normal', 'unsafe']
 
@@ -347,3 +349,23 @@ def test_await_k8s_job_completion_complete_with_fail():
         'MODE': 'unsafe',
     })
     subprocess.run(f'kubectl delete job {name} --wait=false', shell=True, check=False)
+
+@pytest.mark.parametrize('mode', SUPPORTED_MODES)
+@pytest.mark.parametrize('refresh_rate', (0,10,100))
+def test_prep_binary(mode, tmp_path, refresh_rate):
+    name = 'shred'
+    spec = {
+        'CACHE_FOLDER': tmp_path,
+        'NAMESPACE': 'default',
+        'JOB_IMAGE': consts.DEFAULT_IMAGE,
+        'PATH_ON_IMAGE': f'/bin/{name}',
+    }
+    k8s_utils.prep_binary(mode=mode, spec=spec, name=name, refresh_rate_default=refresh_rate)
+
+    if mode != 'dry-run':
+        assert os.access(f'{tmp_path}/{name}', os.X_OK)
+
+
+
+
+# def fetch_from_image(namespace: str, image: str, source, target: str, mode: str) -> None:
