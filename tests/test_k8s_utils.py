@@ -269,11 +269,13 @@ def test_kubectl_upload_download_file(tmp_path, mode):
         tmp_file = tmp_path / 'tmp.yaml'
         tmp_file.write_text('test content')
 
-        remote_path = f'{pod}:/tmp/file'
+        remote_path = f'--container {pod} {pod}:/tmp/file'
+        # upload
         k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path, mode='unsafe' if mode == 'dry-run' else mode, retries=1)
 
         tmp_file.unlink()
 
+        # download
         k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode, retries=1)
 
 @pytest.mark.parametrize(
