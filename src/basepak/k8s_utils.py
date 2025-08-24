@@ -805,7 +805,7 @@ def fetch_from_image(namespace: str, image: str, source, target: str, mode: str)
     kubectl = Executable('kubectl', 'kubectl --namespace', namespace)
 
     from random import getrandbits
-    pod_name = Path(target).name.split('.', maxsplit=1)[0] + '-temp-' + str(getrandbits(16))
+    pod_name = Path(target).name.split('.', maxsplit=1)[0] + '-temp-' + str(getrandbits(16)) # nosec: B311
 
     kubectl.stream('delete pod --ignore-not-found --wait', pod_name, mode=mode)
     kubectl.stream('run --image-pull-policy=Always --image', image, pod_name, '--command -- sleep 3600', mode=mode)
@@ -881,7 +881,7 @@ def set_image_pull_policy_default(spec: dict, refresh_rate_default: float):
     from random import random
     from basepak.templates import recursive_has_pair
 
-    if random() * 99.99 > spec.get('REFRESH_RATE', refresh_rate_default):
+    if random() * 99.99 > spec.get('REFRESH_RATE', refresh_rate_default):  # nosec: B311
         return
     spec.setdefault('IMAGE_PULL_POLICY', 'Always')
 
