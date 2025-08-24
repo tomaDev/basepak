@@ -539,7 +539,7 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
         response = kubectl_run(job_status_cmd)
 
     get_pods_cmd = f'get pods --ignore-not-found --selector=job-name={name}'
-    kubectl.stream(
+    kubectl.stream( # todo: at this stage, imageID could still be blank. Move this downstream to improve chances.
         get_pods_cmd,
         r"""--output jsonpath='{range .items[*].status.containerStatuses[*]}{.image} -> {.imageID}{"\n"}{end}'""",
         show_cmd=False,
