@@ -381,21 +381,22 @@ def ensure_pvc(
     # So we run "get" first, to allow run for existing bound pvc
     # On k8s 1.21 it will error out otherwise, on later versions "wait" works
     pvc_status: str = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name).stdout
-    if pvc_status.lower() not in pvc_desired_states:
-        desired_states = ' '.join(pvc_desired_states)
-        logger.warning(f'{pvc_status=} {desired_states=}\nAwaiting state change')
+    if pvc_status in pvc_desired_states:
+        return
+    desired_states = ' '.join(pvc_desired_states)
+    logger.warning(f'{pvc_status=} {desired_states=}\nAwaiting state change')
 
-        kubectl.set_args('wait persistentvolumeclaim', pvc_name, '--timeout=15s')
-        for phase in pvc_desired_states + pvc_desired_states:  # checking every phase twice to avoid change drift
-            out = kubectl.run(f'--for={pvc_phase_jsonpath}={phase}', show_cmd_level='warning')
-            if not out.returncode:
-                logger.info(f'persistentvolumeclaim {pvc_name} is in desired state: {phase}')
-                return
-        kubectl.set_args('')
-        pvc_status = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name).stdout
-        error_msg = f'{pvc_name=} {pvc_status=} Desired states: {" ".join(pvc_desired_states)}'
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+    kubectl.set_args('wait persistentvolumeclaim', pvc_name, '--timeout=15s')
+    for phase in pvc_desired_states + pvc_desired_states:  # checking every phase twice to avoid change drift
+        out = kubectl.run(f'--for={pvc_phase_jsonpath}={phase}', show_cmd_level='warning')
+        if not out.returncode:
+            logger.info(f'persistentvolumeclaim {pvc_name} is in desired state: {phase}')
+            return
+    kubectl.set_args('')
+    pvc_status = kubectl.run('get persistentvolumeclaim --output', pvc_phase_jsonpath, pvc_name).stdout
+    error_msg = f'{pvc_name=} {pvc_status=} Desired states: {" ".join(pvc_desired_states)}'
+    logger.error(error_msg)
+    raise RuntimeError(error_msg)
 
 
 def ensure_daemonset(spec: dict, logger: logging.Logger) -> None:
