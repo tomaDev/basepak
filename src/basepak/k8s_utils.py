@@ -520,8 +520,6 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     logger = log.get_logger(name=spec.get('LOGGER_NAME'))
     logger_plain = log.get_logger('plain')
     job_status_cmd = 'get job --output jsonpath={.status} ' + name
-    output_wide_on_debug = '--output wide' if spec.get('LOG_LEVEL') == 'DEBUG' else ''
-    get_pods_cmd = f'get pods --ignore-not-found --selector=job-name={name} {output_wide_on_debug}'
 
     kubectl = Executable('kubectl', f'kubectl --namespace {namespace}')
     kubectl_run = functools.partial(kubectl.run, show_cmd=False, check=False)
@@ -539,6 +537,14 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
         logger_plain.warning(f'{response.stderr}\nWaiting {backoff}s')
         response = kubectl_run(job_status_cmd)
 
+    get_pods_cmd = f'get pods --ignore-not-found --selector=job-name={name}'
+    kubectl.stream(
+        get_pods_cmd,
+        r"""--output jsonpath='{range .items[*].status.containerStatuses[*]}{.image} -> {.imageID}{"\n"}{end}'""",
+        show_cmd=False,
+    )
+
+    get_pods_cmd += ' --output wide' if spec.get('LOG_LEVEL') == 'DEBUG' else ''
     kubectl.stream(get_pods_cmd)
 
     import itertools
@@ -803,10 +809,10 @@ def fetch_from_image(namespace: str, image: str, source, target: str, mode: str)
 
     kubectl.stream('delete pod --ignore-not-found --wait', pod_name, mode=mode)
     kubectl.stream('run --image-pull-policy=Always --image', image, pod_name, '--command -- sleep 3600', mode=mode)
-
     if mode == 'dry-run':
         return
-
+    kubectl.stream('get pods', pod_name, '--output',
+                   r"""jsonpath='{range .status.containerStatuses[*]}{.image} -> {.imageID}{"\n"}{end}'""")
     kubectl_cp(f'--{namespace=} {pod_name}:{source}', target, mode=mode)
     kubectl.stream('delete pod --ignore-not-found --wait=false', pod_name, mode=mode)
 
@@ -865,6 +871,12 @@ def prep_binary(mode: str, spec: dict, name: str, refresh_rate_default) -> str:
     return path
 
 
+# Edge case, which looks like a bug:
+#  1. node1 runs with "Always" and updates version. Next run:
+#  2. node2 runs with "IfNotPresent" and doesn't update
+#  This results in a later run will surprisingly use an older version.
+#  Assuming the older version is still good, the run will be successful.
+#  It's not ideal but implementing a solution here, we can always ensure version is latest by manually setting "Always"
 def set_image_pull_policy_default(spec: dict, refresh_rate_default: float):
     from random import random
     from basepak.templates import recursive_has_pair
