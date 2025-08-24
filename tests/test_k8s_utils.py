@@ -185,7 +185,7 @@ def test_ensure_pvc(tmp_path, mode):
     spec = {
         'MODE': mode,
         'PERSISTENT_VOLUME_CLAIM_NAME': 'test-pvc',
-        'PERSISTENT_VOLUME_CLAIM_DESIRED_STATES': ['pending'],
+        'PERSISTENT_VOLUME_CLAIM_DESIRED_STATES': ['Pending'],
         'GENERATED_MANIFESTS_FOLDER': str(tmp_path),
     }
 
@@ -208,7 +208,7 @@ def test_ensure_pvc_bind(tmp_path, mode):
     spec = {
         'MODE': mode,
         'PERSISTENT_VOLUME_CLAIM_NAME': 'test-pvc',
-        'PERSISTENT_VOLUME_CLAIM_DESIRED_STATES': ['bound'],
+        'PERSISTENT_VOLUME_CLAIM_DESIRED_STATES': ['Bound'],
         'GENERATED_MANIFESTS_FOLDER': str(tmp_path),
         'STORAGE_CLASS': 'basepak-test',
     }
