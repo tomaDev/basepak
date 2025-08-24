@@ -114,7 +114,7 @@ class Task(ABC):
                         status = 'succeeded'
                         notes = human_readable(datetime.datetime.now() - start_time)
                         if result and not isinstance(result, bool):
-                            notes = f'{notes}, {result}'
+                            notes = result
                     except KeyboardInterrupt:
                         logger.warning('KeyboardInterrupt')
                         sys.exit(1)
@@ -145,17 +145,17 @@ class Task(ABC):
             return wrapper
         return decorator
 
-    def require(self, *args, **kwargs) -> any:
+    def require(self, *args, **kwargs):
         return
 
-    def setup(self,  *args, **kwargs) -> any:
+    def setup(self,  *args, **kwargs):
         return
 
     @abstractmethod
-    def execute(self,  *args, **kwargs) -> any:
+    def execute(self,  *args, **kwargs):
         ...
 
-    def validate(self, *args, **kwargs) -> any:
+    def validate(self, *args, **kwargs):
         return
 
     @property
