@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
+
+import re
+
+def _get_console_from_logger(logger: logging.Logger):
+    """Return the Console from a RichHandler if available, else a new Console()."""
+    for h in logger.handlers:
+        # RichHandler has a .console attribute
+        if hasattr(h, 'console'):
+            return h.console
+    raise RuntimeError('No console available')
+
 
 
 def subprocess_stream(
@@ -121,3 +133,66 @@ class Executable:
         if kwargs.pop('mode', '') == 'dry-run':
             return
         subprocess_stream(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
+
+
+    def stream_with_progress(self, *, title: str = '',
+                          cwd: Optional[str | os.PathLike] = None, env: Optional[dict] = None, show_cmd=True) -> int:
+        """Run a command with progress bar and return its exit status
+
+        :param title: title of the progress bar
+        :param cwd: working directory, defaults to None
+        :param env: environment variables, defaults to None
+        :param show_cmd: whether to show the command, defaults to True
+        :return: exit status code of the command run
+        """
+        title = title if title else ''
+        cwd = cwd if cwd else None
+        if show_cmd:
+            self.logger.info(self._args)
+
+        percent_re = re.compile(r'(\d{1,3})%')
+        bracketed_progress_re = re.compile(r'^\[.*\]\s+\d{1,3}%\s*$')
+        just_percent_re = re.compile(r'^\s*\d{1,3}%\s*$')
+
+        def is_progress_line(s: str) -> Optional[int]:
+            m = percent_re.search(s)
+            if not m:
+                return None
+            if bracketed_progress_re.match(s) or just_percent_re.match(s):
+                return max(0, min(100, int(m.group(1))))
+            return None
+
+        from rich.progress import Progress, TextColumn, BarColumn, SpinnerColumn, TimeElapsedColumn, TimeRemainingColumn
+
+        with Progress(
+                TextColumn(title),
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn('{task.percentage:>5.1f}%'),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                console=_get_console_from_logger(self.logger),
+                transient=True,
+        ) as progress:
+            task_id = progress.add_task('run', total=100)
+            proc = subprocess.Popen(
+                shell=True,
+                args=self._args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(cwd) if cwd else None,
+                env=env,
+            )
+
+            for raw_line in proc.stdout:
+                line = raw_line.split('\r')[-1].rstrip('\n')
+                pct = is_progress_line(line)
+                if pct is not None:
+                    progress.update(task_id, completed=pct)
+                    continue
+                if line.strip():
+                    self.logger.info(line)
+
+            return proc.wait()
