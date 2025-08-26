@@ -4,7 +4,9 @@ import datetime
 import logging
 import subprocess
 import sys
+import time
 from abc import ABC, abstractmethod
+from datetime import timedelta
 from functools import partial
 from typing import Callable, Optional
 
@@ -108,13 +110,13 @@ class Task(ABC):
                     last_failed_phase = Tracker.get_task_last_failed_phase(self.name)
                     logger.warning(f'{self.name} {status=} {last_failed_phase=}')
                 else:
-                    start_time = datetime.datetime.now()
+                    start_time = time.monotonic()
                     try:
                         result = func(self, *args, **kwargs)
-                        status = 'succeeded'
-                        notes = human_readable(datetime.datetime.now() - start_time)
+                        notes = human_readable(timedelta(seconds=time.monotonic() - start_time))
                         if result and not isinstance(result, bool):
                             notes = result
+                        status = 'succeeded'
                     except KeyboardInterrupt:
                         logger.warning('KeyboardInterrupt')
                         sys.exit(1)
@@ -122,19 +124,24 @@ class Task(ABC):
                         raise click.Abort()
                     except (TimeoutError, requests.exceptions.Timeout) as e:
                         status = 'timeout'
-                        notes = f'{phase} Timeout: {e}'
+                        duration = human_readable(timedelta(seconds=time.monotonic() - start_time))
+                        notes = f'{duration} {phase} Timeout: {e}'
                         logger.error(notes)
                     except subprocess.CalledProcessError as e:
-                        notes = f'{phase} {e.stderr}'
+                        duration = human_readable(timedelta(seconds=time.monotonic() - start_time))
+                        notes = f'{duration} {phase} {e.stderr}'
                     except (FileNotFoundError, AssertionError, StopIteration, NameError, RuntimeError, ValueError) as e:
-                        notes = f'{phase} {type(e).__name__}: {e}'
+                        duration = human_readable(timedelta(seconds=time.monotonic() - start_time))
+                        notes = f'{duration} {phase} {type(e).__name__}: {e}'
                         logger.error(notes)
                     except (IndexError, KeyError) as e:
-                        notes = f'{phase} {type(e).__name__}: {e}'
-                        logger.exception(e)
+                        duration = human_readable(timedelta(seconds=time.monotonic() - start_time))
+                        notes = f'{duration} {phase} {type(e).__name__}: {e}'
+                        logger.exception(e)  # stack trace (exception instead of error) to find key/index more easily
                     except Exception as e:
                         if not notes:
-                            notes = f'{phase} Exception: {e}'
+                            duration = human_readable(timedelta(seconds=time.monotonic() - start_time))
+                            notes = f'{duration} {phase} Exception: {e}'
                             logger.error(notes)
                 self.post_status(status, description=str(notes))
                 logger.info(banner_pattern.format(self.status))
