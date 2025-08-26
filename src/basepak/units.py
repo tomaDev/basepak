@@ -81,7 +81,7 @@ class Unit:
         unit_factors = self._UNIT_FACTORS_KIBI if self.unit in self._UNIT_FACTORS_KIBI else self._UNIT_FACTORS_KILO
         for unit, factor in reversed(list(unit_factors.items())):
             if value_in_bytes >= factor:
-                return Unit(f'{value_in_bytes / factor} {unit}')
+                return Unit(f'{value_in_bytes / factor}{unit}')
 
     @staticmethod
     def reduce(args: Iterable[Union[Unit, str, int, float]], unit: Optional[str] = None,
@@ -100,9 +100,9 @@ class Unit:
                 arg = arg.convert_to('B')  # converting to bytes and not 'unit' to avoid float truncation
             candidates.append(arg)
 
-        ret = Unit(f'{operation(candidates)} B')
+        ret = Unit(f'{operation(candidates)}B')
         if unit:
-            ret = Unit(f'{ret.convert_to(unit)} {unit}')
+            ret = Unit(f'{ret.convert_to(unit)}{unit}')
         else :
             ret = ret.adjust_unit()
         return ret
@@ -114,7 +114,7 @@ class Unit:
 
     def __repr__(self):
         result = self.adjust_unit()
-        return f'{result.value: .2f} {result.unit}'
+        return f'{result.value: .2f}{result.unit}'
 
     def __eq__(self, other: Union[Unit, str]) -> bool:
         if not isinstance(other, Unit):
@@ -130,7 +130,7 @@ class Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
-            other = Unit(f'{other} {self.unit}')
+            other = Unit(f'{other}{self.unit}')
         value = self.convert_to('M') + other.convert_to('M')  # setting to M to avoid float silliness
         return Unit(f'{value} M').adjust_unit()
 
@@ -138,7 +138,7 @@ class Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
-            other = Unit(f'{other} {self.unit}')
+            other = Unit(f'{other}{self.unit}')
         value = self.convert_to('M') - other.convert_to('M')  # setting to M to avoid float silliness
         return Unit(f'{value} M').adjust_unit()
 
@@ -146,9 +146,9 @@ class Unit:
         if isinstance(other, str):
             other = Unit(other)
         if isinstance(other, (float, int)):
-            other = Unit(f'{other} {self.unit}')
+            other = Unit(f'{other}{self.unit}')
         value = self.value * other.convert_to(self.unit)
-        return Unit(f'{value} {self.unit}').adjust_unit()
+        return Unit(f'{value}{self.unit}').adjust_unit()
 
     def __truediv__(self, other: Union[Unit, str, float, int]) -> Unit:
         if isinstance(other, str):
@@ -156,7 +156,7 @@ class Unit:
         if isinstance(other, (float, int)):
             other = Unit(f'{other} {self.unit}')
         value = format(self.convert_to('B') / other.convert_to('B'), '.15f')
-        return Unit(f'{value} {self.unit}').adjust_unit()
+        return Unit(f'{value}{self.unit}').adjust_unit()
 
     def as_unit(self, unit: str) -> str:
         """Return the value as the given unit. If unit='auto', return as is

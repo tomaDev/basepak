@@ -121,11 +121,11 @@ def test_unit_invalid_operations():
     with pytest.raises(ValueError):
         unit - Unit("UnsupportedUnit")
 
-
-def test_unit_as_unit():
-    unit = Unit("1024 B")
+@pytest.mark.parametrize('spaces', ['', ' ', '  '])
+def test_unit_as_unit(spaces):
+    unit = Unit(f'1024{spaces}B')
     assert unit.as_unit("KiB") == "1KiB"
-    assert unit.as_unit("auto") == " 1.00 KiB"
+    assert unit.as_unit("auto").strip() == "1.00KiB"
 
 @pytest.fixture
 def mock_param():
