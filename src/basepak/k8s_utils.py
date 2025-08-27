@@ -897,3 +897,24 @@ def set_image_pull_policy_default(spec: dict, refresh_rate_default: float):
         return
 
     time.sleep(sleep)
+
+
+def get_size_on_remote(spec, path) -> str:
+    """Calculate the size of a file/dir on a remote fs
+
+    :param spec: spec dict
+    :param path: the remote path to measure
+    :return: du -sh size result or empty string
+    """
+    if spec['DISK_TOTALS'] not in ['yes', 'remote']:
+        return ''
+    logger = log.get_logger('plain')
+    kubectl = Executable('kubectl', f'kubectl --namespace', spec['NAMESPACE'], logger=logger)
+    name = create_oneliner_job(spec, command='du -sh {}'.format(path), container_name='du', await_completion=True)
+
+    resp = kubectl.run(f'logs --ignore-errors --selector=job-{name=}', check=False)
+    logger.error(resp.stderr)
+    logger.info(resp.stdout)
+    if size := next((x.strip() for x in resp.stdout.strip().splitlines() if x), ''):
+        return size.split()[0]
+    return ''
