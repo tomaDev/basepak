@@ -366,8 +366,3 @@ def test_prep_binary(mode, tmp_path, refresh_rate):
 
     if mode != 'dry-run':
         assert os.access(f'{tmp_path}/{name}', os.X_OK)
-
-
-
-
-# def fetch_from_image(namespace: str, image: str, source, target: str, mode: str) -> None:

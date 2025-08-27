@@ -76,6 +76,7 @@ class LabelSelectors(metaclass=ConstMeta):
     KEYCLOAK_DB = 'app.kubernetes.io/name=v3io-mysql,app.kubernetes.io/component=keycloak-db'
     KEYCLOAK_STATEFULSETS = 'app.kubernetes.io/name=keycloak'  # noqa: typo
     CONFIGMAPS = 'app.kubernetes.io/managed-by!=Helm,nuclio.io/app!=functionres,!mlrun/class'  # noqa: typo
+    NUCLIO_FUNCTION_DEPLOYMENTS = 'nuclio.io/class=function'
 
 
 class FieldSelectors(metaclass=ConstMeta):
