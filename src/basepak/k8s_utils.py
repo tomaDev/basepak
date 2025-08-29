@@ -558,11 +558,15 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     wait_job_cmd = f'wait job {name} --timeout={int(wait_interval)//2}s --for '
 
     response = kubectl_run(wait_job_cmd, next(conditions))
-    kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
+    resp = kubectl.run(get_pods_cmd).stdout.strip().splitlines()
+    if len(resp) > 1:
+        logger_plain.info('\n'.join(resp[1:]))
     while response.returncode:
         now = datetime.now()
         if now.minute < 1 and now.second < wait_interval % 60 + 1:  # hourly liveness
-            kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
+            resp = kubectl.run(get_pods_cmd).stdout.strip().splitlines()
+            if len(resp) > 1:
+                logger_plain.info('\n'.join(resp[1:]))
         if response.stderr.startswith(RESOURCE_NOT_FOUND):
             msg = f'{response.stderr}! Was the job deleted?'
             logger.warning(f'{msg}\nEvents:')
@@ -574,7 +578,9 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
 
         response = kubectl_run(wait_job_cmd, next(conditions))
 
-    kubectl.stream(get_pods_cmd, '--no-headers', show_cmd=False)
+    resp = kubectl.run(get_pods_cmd).stdout.strip().splitlines()
+    if len(resp) > 1:
+        logger_plain.info('\n'.join(resp[1:]))
 
     kubectl.stream(f'logs --ignore-errors --selector=job-name={name} --since={int(wait_interval)*2}s',
                    f'--tail={tail}' if tail else '', show_cmd=False)

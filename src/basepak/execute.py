@@ -101,7 +101,7 @@ class Executable:
         import json
         ret = self._args + ' '.join(args)
         kwargs = {**self.run_kwargs, **kwargs}
-        return ret + json.dumps(kwargs) if kwargs else ret
+        return ret + ' ' + json.dumps(kwargs) if kwargs else ret
 
     def show(self, *args: str, level: str = 'warning', **kwargs: Dict[str, str]) -> None:
         """Log the command
