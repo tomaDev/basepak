@@ -114,7 +114,7 @@ class Task(ABC):
                     try:
                         result = func(self, *args, **kwargs)
                         notes = human_readable(timedelta(seconds=time.monotonic() - start_time))
-                        if result and not isinstance(result, bool):
+                        if result and not isinstance(result, bool): # todo: refactor to pass results better
                             notes = result
                         status = 'succeeded'
                     except KeyboardInterrupt:
