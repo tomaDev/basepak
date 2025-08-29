@@ -135,20 +135,36 @@ class Executable:
         subprocess_stream(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
 
-    def stream_with_progress(self, *, title: str = '',
-                          cwd: Optional[str | os.PathLike] = None, env: Optional[dict] = None, show_cmd=True) -> int:
+    def stream_with_progress(
+            self, title: str = '',
+            cwd: Optional[str | os.PathLike] = None,
+            env: Optional[dict] = None,
+            show_cmd: bool = True,
+            mode: str = 'dry-run',
+            **kwargs,
+    ) -> int:
         """Run a command with progress bar and return its exit status
 
         :param title: title of the progress bar
         :param cwd: working directory, defaults to None
         :param env: environment variables, defaults to None
         :param show_cmd: whether to show the command, defaults to True
+        :param mode: execution mode, defaults to 'dry-run'
         :return: exit status code of the command run
         """
         title = title if title else ''
         cwd = cwd if cwd else None
+
+        parsed_kwargs = ' '
+        for k, v in kwargs.items():
+            parsed_kwargs += f'{k}{v} ' if (k.strip().endswith('=') or v.strip().startswith('=')) else f'{k} {v} '
+
+        cmd = self._args + parsed_kwargs
+
         if show_cmd:
-            self.logger.info(self._args)
+            self.logger.info(cmd)
+        if mode == 'dry-run':
+            return 0
 
         percent_re = re.compile(r'(\d{1,3})%')
         bracketed_progress_re = re.compile(r'^\[.*\]\s+\d{1,3}%\s*$')
@@ -177,7 +193,7 @@ class Executable:
             task_id = progress.add_task('run', total=100)
             proc = subprocess.Popen(
                 shell=True,
-                args=self._args,
+                args=cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
