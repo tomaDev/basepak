@@ -140,7 +140,7 @@ class Executable:
             cwd: Optional[str | os.PathLike] = None,
             env: Optional[dict] = None,
             show_cmd: bool = True,
-            mode: str = 'dry-run',
+            mode: str = 'normal',
             **kwargs,
     ) -> int:
         """Run a command with progress bar and return its exit status
