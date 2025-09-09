@@ -37,21 +37,28 @@ def test_redact_str_custom_mask():
     expected = '########password'
     assert redact_str(original, mask='#', plaintext_suffix_length=8) == expected
 
-def test_masking_filter():
+@pytest.mark.parametrize(
+    'original, expected', [
+        ('', ''),
+        ('password: my_phrase --access-key=abc123', 'password: ******** --access-key=********'),
+        ('--access-key=abc123 data-access-key=secret123', '--access-key=******** data-access-key=********'),
+        ('echo myPass > /tmp/password', 'echo ******** > /tmp/password'),
+        ("etc printf 'my5!asswrd' > /bla/Password", 'etc printf ******** > /bla/Password'),
+    ]
+)
+def test_masking_filter(original, expected):
     filter_ = MaskingFilter()
-    sensitive_message = 'password: my_phrase --access-key=abc123 data-access-key=secret123'
-    expected_message =  'password: ******** --access-key=******** data-access-key=********'
     record = logging.LogRecord(
         name='test',
         level=logging.INFO,
         pathname=__file__,
         lineno=10,
-        msg=sensitive_message,
+        msg=original,
         args=(),
         exc_info=None,
     )
     filter_.filter(record)
-    assert record.msg == expected_message
+    assert record.msg == expected
 
 def test_masking_filter_no_mask():
     filter_ = MaskingFilter()

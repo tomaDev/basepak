@@ -135,6 +135,7 @@ class Executable:
         subprocess_stream(self._args + ' '.join(args), **self.run_kwargs, **kwargs)
 
 
+    # todo: integrate into stream command
     def stream_with_progress(
             self, title: str = '',
             cwd: Optional[str | os.PathLike] = None,
