@@ -16,21 +16,8 @@ from rich import box, console, table, theme
 from rich.logging import RichHandler
 
 LOGGERS: set[str] = set()
-LOG_MASK = '********'
-SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'access-key', 'db-auth-key']
-SECRET_KEYWORD_PATTERNS = ['password && echo ', "[\"']PASSWORD[\"']:[ ]?[\"']", 'PASSWORD=', 'password: ']
-
 LOG_FILE_NAME_DEFAULT = 'basepak.log'
 APP_NAME_DEFAULT = 'basepak'
-
-EXPRESSIONS_TO_MASK = [
-    rf'((?:--)?{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
-] + [
-    rf'({keyword})[\S]+' for keyword in SECRET_KEYWORD_PATTERNS
-] + [
-    r"(?i)(\b(?:echo|printf)(?:\s+-[neE]+)*\s+)([^|;&>]+?)(?=\s*(?:\|\||&&|;|\||>>?|$))" # echo/printf shell payload
-]
-
 RICH_THEME_KWARGS_DEFAULT = {
     'logging.warning': 'yellow',
     'logging.level.warning': 'bold yellow',
@@ -90,15 +77,63 @@ def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: 
     return ''.join(redacted) + string[-plaintext_suffix_length:]
 
 
+LOG_MASK = '********'
+SENSITIVE_PATH_KEYWORDS = ['pass', 'password', 'secret', 'token', 'key', 'cred', 'auth']
+
+# Build a case-insensitive subpattern that matches a redirect to a path
+# whose basename contains any sensitive keyword. Supports quoted paths
+# and optional FD redirection like `1>` or `2>>`.
+KEYS = '|'.join(map(re.escape, SENSITIVE_PATH_KEYWORDS))
+SENSITIVE_REDIRECT = rf"""
+    \s*                # optional whitespace
+    (?:\d{{1,2}})?     # optional FD number, e.g., 1>, 2>>
+    \s*>>?             # '>' or '>>'
+    \s*
+    (?:                # target path (quoted or unquoted) that includes a keyword
+        "(?:[^"]*(?:{KEYS})[^"]*)"      |
+        '(?:[^']*(?:{KEYS})[^']*)'      |
+        [^\s"'|;&]*(?:{KEYS})[^\s"'|;&]*
+    )
+"""
+
+# Mask ONLY the payload of echo/printf if followed by a sensitive redirect.
+# Group 1: the command and flags + trailing spaces
+# Group 2: the payload to mask
+ECHO_PRINTF_SENSITIVE_MASK = re.compile(
+    rf"""
+    (?ix)                                  # ignore case, verbose
+    (\b(?:echo|printf)(?:\s+-[neE]+)*\s+)  # 1: echo/printf with optional flags and space
+    (.+?)                                  # 2: payload (lazy)
+    (?=                                    # lookahead: must be followed by sensitive redirect
+        {SENSITIVE_REDIRECT}
+        \s*(?:\|\||&&|;|\||$)              # then end or next operator
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+    )
+
+# (Keep your existing patterns as-is, then add the one above at the end)
+SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'access-key', 'db-auth-key']
+SECRET_KEYWORD_PATTERNS = ['password && echo ', r"""["']PASSWORD["']:\s?["']""", 'PASSWORD=', 'password: ']
+
+EXPRESSIONS_TO_MASK = [
+                          re.compile(rf'((?:--)?{keyword}[ =])\S+') for keyword in SECRET_KEYWORD_FLAGS
+                      ] + [
+                          re.compile(rf'({keyword})\S+') for keyword in SECRET_KEYWORD_PATTERNS
+                      ] + [
+                          ECHO_PRINTF_SENSITIVE_MASK,
+                      ]
+
 class MaskingFilter(logging.Filter):
     """Filter to mask sensitive information in log messages"""
     def filter(self, record: logging.LogRecord):
-        if type(record.msg) not in (str, bytes):
-            record.msg = str(record.msg)
-        for expression in EXPRESSIONS_TO_MASK:
-            if re.search(expression, record.msg):
-                substitution = r'\1' + LOG_MASK
-                record.msg = re.sub(expression, substitution, record.msg)
+        # Work on the rendered message, not raw msg+args, so formatters don't resurrect secrets
+        message = record.getMessage() if hasattr(record, 'getMessage') else str(record.msg)
+        for pattern in EXPRESSIONS_TO_MASK:
+            # Replace payload with LOG_MASK while preserving the command (group 1)
+            message = pattern.sub(r"\1" + LOG_MASK, message)
+        record.msg = message
+        record.args = ()  # avoid reformatting with stale args
         return True
 
 

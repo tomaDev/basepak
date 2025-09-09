@@ -9,6 +9,7 @@ from basepak.log import (
     LOGGERS,
     SUPPORTED_LOGGERS,
     TERMINAL_SIZE_FALLBACK,
+    LOG_MASK,
     MaskingFilter,
     get_logger,
     log_as,
@@ -40,10 +41,14 @@ def test_redact_str_custom_mask():
 @pytest.mark.parametrize(
     'original, expected', [
         ('', ''),
-        ('password: my_phrase --access-key=abc123', 'password: ******** --access-key=********'),
-        ('--access-key=abc123 data-access-key=secret123', '--access-key=******** data-access-key=********'),
-        ('echo myPass > /tmp/password', 'echo ******** > /tmp/password'),
-        ("etc printf 'my5!asswrd' > /bla/Password", 'etc printf ******** > /bla/Password'),
+        ('password: my_phrase --access-key=abc123', f'password: {LOG_MASK} --access-key={LOG_MASK}'),
+        ('--access-key=abc123 data-access-key=secret123', f'--access-key={LOG_MASK} data-access-key={LOG_MASK}'),
+        ('echo myPass > /tmp/password', f'echo {LOG_MASK} > /tmp/password'),
+        ("etc printf 'my5!asswrd' > /Password", f'etc printf {LOG_MASK} > /Password'),
+        ('echo vanilla-text > /bla/notasecr3t', 'echo vanilla-text > /bla/notasecr3t'),
+        ('echo hello > /tmp/output.txt', 'echo hello > /tmp/output.txt'),
+        ('password for user is set', f'password {LOG_MASK} user is set'),  # just in case
+        ('echo foo | tee /tmp/password', 'echo foo | tee /tmp/password'), # shouldn't obfuscate external tools like tee
     ]
 )
 def test_masking_filter(original, expected):
@@ -81,7 +86,7 @@ def test_name_to_handler():
         assert isinstance(handler, handler_class)
 
     with pytest.raises(ValueError) as _:
-        name_to_handler("unsupported")
+        name_to_handler('unsupported')
 
 def test_singleton_per_name():
     LOGGERS.discard('short')
@@ -216,9 +221,9 @@ password plainvalue
     with open(file_path, encoding='utf-8') as f:
         result = f.read()
 
-    assert "super_secret" not in result
+    assert 'super_secret' not in result
     # Make sure other lines are unchanged
-    assert "some_key = foo" in result
+    assert 'some_key = foo' in result
 
 
 def test_redact_file_user_replacement(create_tempfile):
@@ -229,20 +234,20 @@ def test_redact_file_user_replacement(create_tempfile):
 username = not_the_same_key
 user = admin
 """
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(file_path, 'w', encoding='utf-8') as f:
         f.write(original_content)
 
     # Custom keys (you could also rely on SECRET_KEYWORD_FLAGS if it has 'user')
-    keys = ["user"]
+    keys = ['user']
     redact_file(file_path, keys=keys)
 
-    with open(file_path, encoding="utf-8") as f:
+    with open(file_path, encoding='utf-8') as f:
         result = f.read()
 
     assert 'root' not in result
     assert 'admin' not in result
     # Should not have replaced 'username = not_the_same_key'
-    assert "username = not_the_same_key" in result
+    assert 'username = not_the_same_key' in result
 
 
 def test_redact_file_custom_key_pattern(create_tempfile):
@@ -254,20 +259,20 @@ def test_redact_file_custom_key_pattern(create_tempfile):
     original_content = """my_key = top-secret
 password = my_password
 """
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(file_path, 'w', encoding='utf-8') as f:
         f.write(original_content)
 
     # We only want to redact 'my_key'
-    keys = ["my_key"]
+    keys = ['my_key']
     redact_file(file_path, keys=keys)
 
-    with open(file_path, encoding="utf-8") as f:
+    with open(file_path, encoding='utf-8') as f:
         result = f.read()
 
     # my_key value should be replaced
     assert 'top-secret' not in result
     # password line remains unchanged since we didn't provide 'password' in keys
-    assert "password = my_password" in result
+    assert 'password = my_password' in result
 
 
 def test_redact_file_empty(create_tempfile):
@@ -276,16 +281,16 @@ def test_redact_file_empty(create_tempfile):
     """
     file_path = create_tempfile
     # Create an empty file
-    open(file_path, "w").close()
+    open(file_path, 'w').close()
 
     # Try redacting
     redact_file(file_path)
 
     # Should still be empty
-    with open(file_path, encoding="utf-8") as f:
+    with open(file_path, encoding='utf-8') as f:
         result = f.read()
 
-    assert result == ""
+    assert result == ''
 
 
 def clear_existing_loggers():
@@ -313,17 +318,17 @@ def test_write_log_to_file(tmp_path, monkeypatch):
     log_dir = tmp_path / "logs"
     log_file_path = str(log_dir / log_file_name)
 
-    monkeypatch.setenv("BASEPAK_WRITE_LOG_TO_FILE", "True")
-    monkeypatch.setenv("BASEPAK_LOG_FILE", log_file_name)
-    monkeypatch.setenv("BASEPAK_LOG_PATH", log_file_path)
+    monkeypatch.setenv('BASEPAK_WRITE_LOG_TO_FILE', 'True')
+    monkeypatch.setenv('BASEPAK_LOG_FILE', log_file_name)
+    monkeypatch.setenv('BASEPAK_LOG_PATH', log_file_path)
 
-    logger = get_logger("short", level='debug')
-    logger.info("Test message")
+    logger = get_logger('short', level='debug')
+    logger.info('Test message')
 
-    with open(log_file_path, encoding="utf-8") as f:
+    with open(log_file_path, encoding='utf-8') as f:
         content = f.read()
 
-    assert "Test message" in content
+    assert 'Test message' in content
 
 def test_no_write_log_to_file(tmp_path, monkeypatch):
     assert not os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')
