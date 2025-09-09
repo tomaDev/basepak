@@ -19,6 +19,7 @@ LOGGERS: set[str] = set()
 LOG_MASK = '********'
 SECRET_KEYWORD_FLAGS = ['password', 'data-access-key', 'control-access-key', 'access-key', 'db-auth-key']
 SECRET_KEYWORD_PATTERNS = ['password && echo ', "[\"']PASSWORD[\"']:[ ]?[\"']", 'PASSWORD=', 'password: ']
+
 LOG_FILE_NAME_DEFAULT = 'basepak.log'
 APP_NAME_DEFAULT = 'basepak'
 
@@ -26,6 +27,8 @@ EXPRESSIONS_TO_MASK = [
     rf'((?:--)?{keyword}[ =])[\S]+' for keyword in SECRET_KEYWORD_FLAGS
 ] + [
     rf'({keyword})[\S]+' for keyword in SECRET_KEYWORD_PATTERNS
+] + [
+    r"(?i)(\b(?:echo|printf)(?:\s+-[neE]+)*\s+)([^|;&>]+?)(?=\s*(?:\|\||&&|;|\||>>?|$))" # echo/printf shell payload
 ]
 
 RICH_THEME_KWARGS_DEFAULT = {
