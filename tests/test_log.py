@@ -49,6 +49,8 @@ def test_redact_str_custom_mask():
         ('echo hello > /tmp/output.txt', 'echo hello > /tmp/output.txt'),
         ('password for user is set', f'password {LOG_MASK} user is set'),  # just in case
         ('echo foo | tee /tmp/password', 'echo foo | tee /tmp/password'), # shouldn't obfuscate external tools like tee
+        # ("""-c 'touch /tmp/password && echo 24tango > /tmp/password ;  rethinkdb-dump --connect=172.17.0.12:8003 --password-file=/tmp/password '""",
+        #     f"""-c 'touch /tmp/password && echo {LOG_MASK} > /tmp/password ;  rethinkdb-dump --connect=172.17.0.12:8003 --password-file=/tmp/password '""")
     ]
 )
 def test_masking_filter(original, expected):
