@@ -600,6 +600,73 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     raise RuntimeError(f'{name=}, {terminal_status=}')
 
 
+# todo: add tests
+def scale_resources_to_zero(
+        resources: Mapping, prefix: str, namespace: Optional[str] = 'default-tenant', mode: Optional[str] = None,
+        logger: Optional[logging.Logger] = None,
+) -> None:
+    """Scale to zero given resources
+
+    :param resources:
+    :param prefix: string prefix for spec lookups
+    :param namespace: namespace of the resources
+    :param mode: execution mode
+    :param logger: logger object
+    """
+    logger_plain = log.get_logger('plain')
+    kubectl = Executable('kubectl', 'kubectl -n', namespace, logger=logger_plain)
+    labels_to_await = []
+    mode = mode or 'dry-run'
+    logger = logger or log.get_logger()
+    if not resources.get(prefix + '_SERVICE_REPLICAS_SCALE_TO_ZERO', True):
+        logger.warning('service replicas scale to zero is disabled')
+        return
+    if mode == 'normal':
+        from basepak import confirm
+        confirm.default()
+
+    dry_run_option = '--dry-run=server' if mode == 'dry-run' else ''
+    if labels := resources.get('LABEL_SELECTOR_DEPLOYMENTS'):
+        if isinstance(labels, str):
+            labels = [labels]
+        for selector in labels:
+            if not kubectl.run(f'get deployment --{selector=}', check=False).stdout.strip():
+                logger.warning(f'No deployment found in --{namespace=} --{selector=}')
+                logger.warning(f'Skipping scale...')
+                continue
+            labels_to_await.append(selector)
+            kubectl.stream(f'scale deployment --replicas=0 --{selector=}', dry_run_option)
+
+    if labels := resources.get('LABEL_SELECTOR_STATEFULSETS'):
+        if isinstance(labels, str):
+            labels = [labels]
+        for selector in labels:
+            if not kubectl.run(f'get statefulset --{selector=}', check=False).stdout.strip():
+                logger.warning(f'No statefulset found in --{namespace=} --{selector=}')
+                logger.warning(f'Skipping scale...')
+                continue
+            labels_to_await.append(selector)
+            kubectl.stream(f'scale statefulset --replicas=0 --{selector=}', dry_run_option)
+
+    logger.info('Waiting for pods to terminate')
+    if mode == 'dry-run':
+        return
+    from time import monotonic
+    start_time = monotonic()
+    for selector in labels_to_await:
+        get_pods_cmd = f'get pods --{selector=}'
+        pods = kubectl.run(get_pods_cmd).stdout.strip()
+        while pods:
+            logger_plain.info(pods)
+            if start_time - monotonic() > 3600:
+                raise TimeoutError(f'Termination timeout for pods at --{namespace=} --{selector=} ')
+            time.sleep(10)
+            pod_lines = kubectl.run(get_pods_cmd).stdout.strip().splitlines()
+            if len(pod_lines) <= 1:
+                break
+            pods = '\n'.join(pod_lines[1:])
+
+
 # deprecated
 def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl: Executable, retries: int,
                                          logger: logging.Logger) -> int:
