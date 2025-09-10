@@ -78,7 +78,7 @@ def redact_str(string: str, mask: Optional[str] = '*', plaintext_suffix_length: 
 
 
 LOG_MASK = '********'
-SENSITIVE_PATH_KEYWORDS = ['pass', 'password', 'secret', 'token', 'key', 'cred', 'auth']
+SENSITIVE_PATH_KEYWORDS = ['password', 'secret', 'token', 'key', 'cred', 'auth']
 
 # Build a case-insensitive subpattern that matches a redirect to a path
 # whose basename contains any sensitive keyword. Supports quoted paths

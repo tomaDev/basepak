@@ -77,7 +77,8 @@ class LabelSelectors(metaclass=ConstMeta):
     KEYCLOAK_STATEFULSETS = 'app.kubernetes.io/name=keycloak'  # noqa: typo
     CONFIGMAPS = 'app.kubernetes.io/managed-by!=Helm,nuclio.io/app!=functionres,!mlrun/class'  # noqa: typo
     NUCLIO_FUNCTION_DEPLOYMENTS = 'nuclio.io/class=function'
-
+    FRAMESD_DEPLOYMENTS = 'app=v3io-framesd'
+    JUPYTER_DEPLOYMENTS = 'app=jupyter'
 
 class FieldSelectors(metaclass=ConstMeta):
     """Field selectors for Kubernetes resources of Iguazio platform components"""
