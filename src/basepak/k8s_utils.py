@@ -1,6 +1,7 @@
 """Functions for creating and managing k8s resources"""
 from __future__ import annotations
 
+import copy
 import functools
 import json
 import logging
@@ -979,6 +980,11 @@ def get_size_on_remote(spec, path) -> str:
     :param path: the remote path to measure
     :return: du -sh size result or empty string
     """
+    spec = copy.deepcopy(spec)
+    spec.pop('JOB_NAME', None)
+    spec.pop('JOB_IMAGE', None)
+    spec.pop('ARGS', None)
+    spec.pop('ENV_VARS', None)
     if spec['DISK_TOTALS'] not in ['yes', 'remote']:
         return ''
     logger = log.get_logger('plain')
@@ -989,5 +995,5 @@ def get_size_on_remote(spec, path) -> str:
     logger.error(resp.stderr)
     logger.info(resp.stdout)
     if size := next((x.strip() for x in resp.stdout.strip().splitlines() if x), ''):
-        return size.split()[0]
+        return size.split()[0].strip().replace("'", "")
     return ''
