@@ -76,6 +76,7 @@ def generate_template(
         'spec': {
             'ttlSecondsAfterFinished': time.str_to_seconds(params['RETENTION_PERIOD']),
             'activeDeadlineSeconds': time.str_to_seconds(params['JOB_TIMEOUT']),
+            **params.get('POD_FAILURE_POLICY', {}),
             'template': {
                 'spec': {
                     'containers': [{
