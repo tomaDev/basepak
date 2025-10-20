@@ -1,30 +1,33 @@
 from __future__ import annotations
 
-import io
 import logging
 import os
 from typing import AnyStr, List
 
 
-def tail(file_path: AnyStr, n: int) -> List[str]:
-    """Tails the last (roughly) n lines of a file. Some minor variation was observed for irregular streams
-    :param file_path: path to file
-    :param n: number of lines to tail
-    :return: list of text lines
-    """
-    with open(file_path, 'rb') as file:
-        file.seek(0, os.SEEK_END)
-        buffer = io.BytesIO()
-        remaining = n + 1
-        while remaining > 0 and file.tell() > 0:
-            block_size = min(4096, file.tell())
-            file.seek(-block_size, os.SEEK_CUR)
-            block = file.read(block_size)
-            buffer.write(block)
-            file.seek(-block_size, os.SEEK_CUR)
-            remaining -= block.count(b'\n')
-        buffer.seek(0, os.SEEK_SET)
-        return buffer.read().decode(errors='replace').splitlines()
+def tail(file_path: AnyStr, n: int = 50, block_size: int = 4096, encoding: str = "utf-8") -> List[str]:
+    """Return the last n lines of a file efficiently."""
+    if n <= 0:
+        return []
+
+    with open(file_path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        pos = f.tell()
+        blocks: list[bytes] = []
+        need = n + 1
+
+        while pos > 0 and need > 0:
+            read_size = min(block_size, pos)
+            pos -= read_size
+            f.seek(pos, os.SEEK_SET)
+            data = f.read(read_size)
+            blocks.append(data)
+            need -= data.count(b"\n")
+
+        buf = b"".join(reversed(blocks))
+        lines = buf.splitlines()  # handles \n, \r\n, final line w/o newline
+        tail_bytes = lines[-n:]
+        return [b.decode(encoding, errors="replace") for b in tail_bytes]
 
 
 def validate_pattern(path: AnyStr, pattern: str, logger: logging.Logger, num_of_lines: int = 100) -> bool:
