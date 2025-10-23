@@ -53,6 +53,8 @@ class Unit:
     def __post_init__(self) -> None:
         input_list = strings.split_on_first_letter(self._input_string)
         input_stripped = strings.clean_strings(input_list)
+        if not input_stripped:
+            input_stripped = Unit.ZERO_UNIT.split()
         if len(input_stripped) != 2:
             raise ValueError(f'Constructor format: Number[ ]?Unit\nGot: {self._input_string}')
         self.value, self.unit = input_stripped
