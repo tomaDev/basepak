@@ -507,6 +507,9 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
     """Wait for k8s job to complete
     :param spec: dict with job parameters. Must contain 'NAMESPACE', 'JOB_NAME', 'MODE' keys.
     :param tail: num of lines to print from job logs on completion. Defaults to k8s default
+    :raises ValueError: if missing parameters from spec
+    :raises RuntimeError: if k8s job failed to complete
+    :return: True if k8s job succeeded
     """
     namespace = spec.get('NAMESPACE')
     if not namespace:
