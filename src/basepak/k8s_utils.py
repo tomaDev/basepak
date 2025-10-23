@@ -918,14 +918,13 @@ def prep_binary(mode: str, spec: dict, name: str, refresh_rate_default) -> str:
         image = spec['JOB_IMAGE']
         namespace = spec['NAMESPACE']
         path_on_image = spec['PATH_ON_IMAGE']
-        image_pull_policy = spec.get('IMAGE_PULL_POLICY')
 
         logger = log.get_logger()
         logger.warning(f'{name} path not set in manifest or found in PATH. Checking in temp dir')
         path = os.path.join(temp_dir, name)
 
         set_image_pull_policy_default(spec, refresh_rate_default)
-        if image_pull_policy == 'Always':
+        if spec.get('IMAGE_PULL_POLICY') == 'Always':
             logger.warning(f'Force updating from k8s image')
             swap_path = path + '.swap'
             fetch_from_image(namespace, image, path_on_image, swap_path, mode)
