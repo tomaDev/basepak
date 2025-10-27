@@ -1,212 +1,112 @@
+from __future__ import annotations
+
+import base64
 import os
-import tempfile
+
 from pathlib import Path
-from typing import Dict, Optional
 from unittest.mock import patch
 
-import pytest
+import pytest # noqa
 
 from basepak.credentials import Credentials, load_from_dotenv
-import base64
 
 
-dotenv_path = tempfile.mktemp()
-
-def test_credentials_singleton():
-    cred1 = Credentials()
-    cred2 = Credentials()
-    assert cred1 is cred2
-
-def test_set_with_spec():
-    Credentials._credentials = {}
-    spec = {
-        'USER1': {
-            'USERNAME': 'user1',
-            'PASSWORD': 'pass1',
-        }
-    }
-    Credentials.set(spec=spec, dotenv_path=dotenv_path)
-    creds = Credentials.get()
-    assert creds['USER1']['USERNAME'] == 'user1'
-    assert creds['USER1']['PASSWORD'] == 'pass1'
-
-def test_set_with_auths():
-    Credentials._credentials = {}
-    auths = {'USER2': 'user2:pass2'}
-    Credentials.set(auths=auths, dotenv_path=dotenv_path)
-    creds = Credentials.get()
-    assert creds['USER2']['USERNAME'] == 'user2'
-    assert creds['USER2']['PASSWORD'] == 'pass2'
-
-def test_set_with_invalid_auths():
-    Credentials._credentials = {}
-    auths = {'USER_INVALID': 'invalid_format'}
-    with pytest.raises(Exception):
-        Credentials.set(auths=auths, dotenv_path=dotenv_path)
-
-@patch('basepak.credentials.load_from_dotenv')
-def test_set_with_dotenv(mock_load_from_dotenv):
-    Credentials._credentials = {}
-    mock_load_from_dotenv.return_value = {'USER3': 'user3:pass3'}
-    with patch.dict(os.environ, {'BASEPAK_DOTENV_PATH': '/path/to/.env'}):
-        Credentials.set()
-    creds = Credentials.get()
-    assert creds['USER3']['USERNAME'] == 'user3'
-    assert creds['USER3']['PASSWORD'] == 'pass3'
-
-def test_get_with_user_mask():
-    Credentials._credentials = {
-        'USER1': {'USERNAME': 'user1', 'PASSWORD': 'pass1'},
-        'USER2': {'USERNAME': 'user2', 'PASSWORD': 'pass2'},
-    }
-    creds = Credentials.get(user_mask='USER1')
-    assert creds['USERNAME'] == 'user1'
-    assert creds['PASSWORD'] == 'pass1'
-
-@patch('basepak.execute.Executable')
-def test_set_from_k8s(mock_executable):
-    mock_run = mock_executable.return_value.run
-    mock_run.return_value.stdout = '''
-    {
-      "items": [
-        {
-          "metadata": {"name": "secret.user4"},
-          "data": {
-            "USERNAME": "dXNlcjQ=",
-            "PASSWORD": "cGFzczQ="
-          }
-        }
-      ]
-    }
-    '''
-    Credentials._credentials = {}
-    Credentials.set_from_k8s()
-    creds = Credentials.get()
-    assert creds['USER4']['USERNAME'] == 'user4'
-    assert creds['USER4']['PASSWORD'] == 'pass4'
-
-def test_set_missing_username():
-    Credentials._credentials = {}
-    spec = {'USER_MISSING_USERNAME': {'PASSWORD': 'pass'}}
-    with pytest.raises(Exception):
-        Credentials.set(spec=spec)
-
-def test_set_missing_password_and_auth_key():
-    Credentials._credentials = {}
-    spec = {'USER_MISSING_PASSWORD': {'USERNAME': 'user'}}
-    with pytest.raises(Exception):
-        Credentials.set(spec=spec)
-
-
-def b64(s: str) -> str:
+def _b64(s: str) -> str:
     return base64.b64encode(s.encode()).decode()
 
-
-@pytest.fixture
-def env_path(tmp_path: Path) -> Path:
-    return tmp_path / ".env"
-
-
-def write_env(envp: Path, mapping: Dict[str, Optional[str]]) -> None:
-    """
-    Write a .env from a dict:
-      - value is None  -> write a bare KEY line (no '=')
-      - value is ''    -> write 'KEY='
-      - otherwise      -> write 'KEY=value'
-    """
-    lines = []
-    for k, v in mapping.items():
-        if v is None:
-            lines.append(f"{k}\n")
-        else:
-            lines.append(f"{k}={v}\n")
-    envp.write_text("".join(lines), encoding="utf-8")
-
+def _write_env(p: Path, mapping: dict[str, str | None]) -> None:
+    p.write_text("".join(f"{k}={v}\n" if v is not None else f"{k}\n" for k, v in mapping.items()),encoding="utf-8")
 
 @pytest.fixture(autouse=True)
-def _clear_loader_cache():
-    """Ensure cache doesn't leak between tests."""
+def _isolate(monkeypatch):
     load_from_dotenv.cache_clear()
+    monkeypatch.setattr(Credentials, "_credentials", {}, raising=False)
+    monkeypatch.delenv("BASEPAK_DOTENV_PATH", raising=False)
     yield
     load_from_dotenv.cache_clear()
 
+def test_credentials_is_singleton():
+    assert Credentials() is Credentials()
 
-@pytest.fixture
-def reset_credentials():
-    """Reset the singleton storage for clean tests."""
-    Credentials._credentials = {}
-    yield
-    Credentials._credentials = {}
+def test_set_with_spec(tmp_path: Path):
+    env_p = tmp_path / ".env.spec"
+    Credentials.set(spec={"USER1": {"USERNAME": "user1", "PASSWORD": "pass1"}}, dotenv_path=env_p)
+    c = Credentials.get()
+    assert c["USER1"]["USERNAME"] == "user1" and c["USER1"]["PASSWORD"] == "pass1"
 
+def test_set_with_auths(tmp_path: Path):
+    env_p = tmp_path / ".env.auths"
+    Credentials.set(auths={"USER2": "user2:pass2"}, dotenv_path=env_p)
+    c = Credentials.get()
+    assert c["USER2"]["USERNAME"] == "user2" and c["USER2"]["PASSWORD"] == "pass2"
 
-# --------------------------- Parametrized cases ---------------------------
+def test_set_with_invalid_auths(tmp_path: Path):
+    with pytest.raises(Exception):
+        Credentials.set(auths={"USER_INVALID": "invalid_format"}, dotenv_path=tmp_path / ".env.bad")
+
+@patch("basepak.credentials.load_from_dotenv")
+def test_set_with_dotenv(mock_load_from_dotenv):
+    mock_load_from_dotenv.return_value = {"USER3": "user3:pass3"}
+    with patch.dict(os.environ, {"BASEPAK_DOTENV_PATH": "/x/.env"}):
+        Credentials.set()
+    c = Credentials.get()
+    assert c["USER3"]["USERNAME"] == "user3" and c["USER3"]["PASSWORD"] == "pass3"
+
+def test_get_with_user_mask():
+    Credentials._credentials = {"USER1": {"USERNAME": "user1", "PASSWORD": "pass1"}, "USER2": {"USERNAME": "user2", "PASSWORD": "pass2"}}
+    masked = Credentials.get(user_mask="USER1")
+    assert masked["USERNAME"] == "user1" and masked["PASSWORD"] == "pass1"
+
+@patch("basepak.execute.Executable")
+def test_set_from_k8s(mock_exec):
+    mock_exec.return_value.run.return_value.stdout =\
+        """{"items":[{"metadata":{"name":"secret.user4"},"data":{"USERNAME":"dXNlcjQ=","PASSWORD":"cGFzczQ="}}]}""" # noqa
+    Credentials.set_from_k8s()
+    c = Credentials.get()
+    assert c["USER4"]["USERNAME"] == "user4" and c["USER4"]["PASSWORD"] == "pass4"
+
+@pytest.mark.parametrize("spec", [
+    {"USER_MISSING_USERNAME": {"PASSWORD": "pass"}},
+    {"USER_MISSING_PASSWORD": {"USERNAME": "user"}},
+])
+def test_set_missing_fields(spec):
+    with pytest.raises(Exception):
+        Credentials.set(spec=spec)
 
 @pytest.mark.parametrize(
     "env_map, decode_values, expected",
     [
-        pytest.param( # base64 decode happy path
-            {"USER_A": b64("userA:passA"), "USER_B": b64("userB:passB")},
-            "base64",
-            {"USER_A": "userA:passA", "USER_B": "userB:passB"},
-            id="base64_ok",
-        ),
-        pytest.param( # no decoding -> raw base64 returned
-            {"USER_RAW": b64("user:pass")},
-            "",
-            {"USER_RAW": b64("user:pass")},
-            id="plain_no_decode",
-        ),
-        pytest.param( # empty and no-value keys
-            {"KEY_EMPTY": "", "KEY_NOVAL": None},
-            "base64",
-            {"KEY_EMPTY": None, "KEY_NOVAL": None},  # your function maps falsy to None
-            id="empty_and_no_value_lines",
-        ),
-        pytest.param( # trailing newline encoded by macOS `echo | base64`
-            {"USER_NL": b64("user:pass\n")},
-            "base64",
-            {"USER_NL": "user:pass\n"},  # preserved by current implementation
-            id="trailing_newline_preserved",
-        ),
+        ({"USER_A": _b64("userA:passA"), "USER_B": _b64("userB:passB")}, "base64", {"USER_A": "userA:passA", "USER_B": "userB:passB"}),
+        ({"USER_RAW": _b64("user:pass")}, "", {"USER_RAW": _b64("user:pass")}),
+        ({"KEY_EMPTY": "", "KEY_NOVAL": None}, "base64", {"KEY_EMPTY": None, "KEY_NOVAL": None}),
+        ({"USER_NL": _b64("user:pass\n")}, "base64", {"USER_NL": "user:pass\n"}),
     ],
 )
-def test_load_from_dotenv_matrix(env_path: Path, env_map, decode_values, expected):
-    write_env(env_path, env_map)
-    out = load_from_dotenv(str(env_path), decode_values=decode_values)
-    assert out == expected
+def test_load_from_dotenv_matrix(tmp_path: Path, env_map, decode_values, expected):
+    env_p = tmp_path / ".env.matrix"
+    _write_env(env_p, env_map)
+    assert load_from_dotenv(str(env_p), decode_values=decode_values) == expected
 
-
-# --------------------------- Focused edge cases ---------------------------
-
-def test_load_from_dotenv_invalid_base64_raises(env_path: Path):
-    write_env(env_path, {"BAD": "***not-base64***"})
+def test_load_from_dotenv_invalid_base64_raises(tmp_path: Path):
+    env_p = tmp_path / ".env.invalid"
+    _write_env(env_p, {"BAD": "***not-base64***"})
     with pytest.raises(Exception):
-        load_from_dotenv(str(env_path), decode_values="base64")
+        load_from_dotenv(str(env_p), decode_values="base64")
 
-
-def test_load_from_dotenv_cache_behavior(env_path: Path, monkeypatch):
-    # initial
-    write_env(env_path, {"USER_X": b64("userX:passX")})
-    first = load_from_dotenv(str(env_path), decode_values="base64")
-    assert first["USER_X"] == "userX:passX"
-
-    # change file; cached result should remain
-    write_env(env_path, {"USER_X": b64("userX:CHANGED")})
-    cached = load_from_dotenv(str(env_path), decode_values="base64")
-    assert cached["USER_X"] == "userX:passX"
-
-    # clear cache -> now we observe the change
+def test_load_from_dotenv_cache_behavior(tmp_path: Path):
+    env_p = tmp_path / ".env.cache"
+    _write_env(env_p, {"USER_X": _b64("userX:passX")})
+    assert load_from_dotenv(str(env_p), "base64")["USER_X"] == "userX:passX"
+    _write_env(env_p, {"USER_X": _b64("userX:CHANGED")})
+    # same path + cached -> old value
+    assert load_from_dotenv(str(env_p), "base64")["USER_X"] == "userX:passX"
     load_from_dotenv.cache_clear()
-    refreshed = load_from_dotenv(str(env_path), decode_values="base64")
-    assert refreshed["USER_X"] == "userX:CHANGED"
+    assert load_from_dotenv(str(env_p), "base64")["USER_X"] == "userX:CHANGED"
 
-
-def test_credentials_set_with_real_dotenv_base64(env_path: Path, monkeypatch, reset_credentials):
-    # End-to-end (no mocks): .env with base64 values -> Credentials.set() -> dict
-    write_env(env_path, {"USER3": b64("user3:pass3")})
-    monkeypatch.setenv("BASEPAK_DOTENV_PATH", str(env_path))
-
+def test_credentials_set_with_real_dotenv_base64(tmp_path: Path):
+    env_p = tmp_path / ".env.real"
+    _write_env(env_p, {"USER3": _b64("user3:pass3")})
+    os.environ["BASEPAK_DOTENV_PATH"] = str(env_p)
     Credentials.set()
-    creds = Credentials.get()
-    assert creds["USER3"]["USERNAME"] == "user3"
-    assert creds["USER3"]["PASSWORD"] == "pass3"
+    c = Credentials.get()
+    assert c["USER3"]["USERNAME"] == "user3" and c["USER3"]["PASSWORD"] == "pass3"

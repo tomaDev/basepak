@@ -3,17 +3,19 @@ from __future__ import annotations
 import functools
 from collections.abc import Iterable, Mapping
 from typing import Dict, Optional, Type, OrderedDict
+from pathlib import Path
 
 
 @functools.lru_cache
-def load_from_dotenv(dotenv_path: Optional[str] = None, decode_values: Optional[str] = 'base64') -> Dict[str, str]:
+def load_from_dotenv(dotenv_path: Optional[str | Path] = None, decode_values: Optional[str] = 'base64') -> Dict[str, str]:
     """Load environment variables from a .env file
     :param dotenv_path: path to .env file
     :param decode_values: decode method for values
-    :return: dict of environment variables"""
+    :return: dict of kv pairs {str: str|None}
+    :raise: NotImplementedError if decode_values not implemented"""
     from dotenv import dotenv_values, find_dotenv
     from base64 import b64decode
-    lines: OrderedDict[str, str | None] = dotenv_values(str(dotenv_path or find_dotenv()), verbose=True)
+    lines: OrderedDict[str, str | None] = dotenv_values(dotenv_path or find_dotenv(), verbose=True)
     if not decode_values or not decode_values.strip():
         return lines
     if decode_values == 'base64':
@@ -91,7 +93,7 @@ class Credentials:
             cls,
             spec: Optional[Mapping[str, Mapping[str, str]]] = None,
             auths: Optional[Mapping[str, str]] = None,
-            dotenv_path: Optional[str] = None,
+            dotenv_path: Optional[str | Path] = None,
     ) -> Type[Credentials]:
         """Set credentials for users in spec and args
         :param spec: dict of dicts to get credentials from a file:
