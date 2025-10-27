@@ -2,16 +2,23 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Iterable, Mapping
-from typing import Dict, Optional, Type
+from typing import Dict, Optional, Type, OrderedDict
 
 
 @functools.lru_cache
-def load_from_dotenv(dotenv_path: Optional[str] = None) -> Dict[str, str]:
+def load_from_dotenv(dotenv_path: Optional[str] = None, decode_values: Optional[str] = 'base64') -> Dict[str, str]:
     """Load environment variables from a .env file
     :param dotenv_path: path to .env file
+    :param decode_values: decode method for values
     :return: dict of environment variables"""
     from dotenv import dotenv_values, find_dotenv
-    return dotenv_values(str(dotenv_path or find_dotenv()), verbose=True)
+    from base64 import b64decode
+    lines: OrderedDict[str, str | None] = dotenv_values(str(dotenv_path or find_dotenv()), verbose=True)
+    if not decode_values or not decode_values.strip():
+        return lines
+    if decode_values == 'base64':
+        return {k: (None if not lines.get(k) else b64decode(lines[k], validate=True).decode("utf-8")) for k in lines}
+    raise NotImplementedError(f'decode_values not implemented for {decode_values}! Current options: ["", "base64"]')
 
 
 class Credentials:
