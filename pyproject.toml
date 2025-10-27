@@ -42,7 +42,6 @@ dependencies = [
         'ruyaml',
         'tenacity',
         'rich',
-        'psutil',
         'python-dotenv',
         'igz-mgmt',
 ]

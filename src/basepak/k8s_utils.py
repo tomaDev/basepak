@@ -835,45 +835,134 @@ def is_path_local(path: str | Path) -> bool:
 
     return is_path_local_best_effort(path) # fallback to best effort without `df`
 
+import os
+import platform
+import re
+import subprocess
+from collections import namedtuple
+from typing import Iterable, List, Optional
 
-def is_path_local_best_effort(path: str | Path) -> bool:
-    """Check if path is on a local or remote disk (without using `df`).
-    :param path: path
-    :return:     True if path exists and resolves to a recognizable partition on a local disk. False otherwise
+Partition = namedtuple("Partition", "device mountpoint fstype opts")
+
+
+_OCT_ESC_RE = re.compile(r'\\([0-7]{3})')
+
+def _unescape_proc_mounts(s: str) -> str:
+    # /proc/mounts escapes space, tab, newline, and backslash as octal.
+    return _OCT_ESC_RE.sub(lambda m: chr(int(m.group(1), 8)), s)
+
+def _linux_partitions_all() -> List[Partition]:
+    path = "/proc/self/mounts" if os.path.exists("/proc/self/mounts") else "/proc/mounts"
+    parts: List[Partition] = []
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            cols = line.rstrip("\n").split()
+            if len(cols) < 4:
+                continue
+            dev = _unescape_proc_mounts(cols[0])
+            mnt = _unescape_proc_mounts(cols[1])
+            fstype = cols[2]
+            opts = cols[3]
+            parts.append(Partition(dev, mnt, fstype, opts))
+    return parts
+
+def _macos_partitions_all() -> List[Partition]:
+    # Example line:
+    # /dev/disk3s1 on / (apfs, sealed, local, read-only, journaled)
+    # map -hosts on /net (autofs, nosuid, automounted, nobrowse)
+    out = subprocess.check_output(["mount"], text=True, encoding="utf-8", errors="replace")
+    parts: List[Partition] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = re.match(r"^(.*?) on (.*?) \((.*?)\)$", line)
+        if not m:
+            continue
+        dev, mnt, opts_str = m.groups()
+        fstype = opts_str.split(",")[0].strip() if opts_str else ""
+        # normalize options formatting similar to /proc/mounts (comma-separated)
+        opts_norm = opts_str.replace(", ", ",") if opts_str else ""
+        parts.append(Partition(dev, mnt, fstype, opts_norm))
+    return parts
+
+def disk_partitions_all() -> List[Partition]:
+    sys = platform.system()
+    if sys == "Linux":
+        return _linux_partitions_all()
+    if sys == "Darwin":
+        return _macos_partitions_all()
+    raise NotImplementedError("Only Linux and macOS are supported")
+
+_NON_LOCAL_FSTYPES = {
+    # Linux/Unix network & cluster FS
+    "nfs", "nfs4", "cifs", "smbfs", "9p",
+    "glusterfs", "ceph", "cephfs", "lustre", "ocfs2", "gfs2", "afs",
+    # FUSE remotes
+    "sshfs", "fuse.sshfs", "fuse.s3fs", "gcsfuse", "fuse.rclone",
+    "fuse.davfs", "davfs", "fuse.gvfsd-fuse", "fuse.cgofuse",
+    # Autofs maps (often remote)
+    "autofs",
+}
+
+def _is_non_local_fstype(fs: str) -> bool:
+    fs_l = (fs or "").lower()
+    # any unknown FUSE is suspiciously remote
+    return fs_l in _NON_LOCAL_FSTYPES or fs_l.startswith("fuse.")
+
+def _looks_like_network_device(dev: str) -> bool:
     """
-    path = Path(path).resolve()
-    path = str(path)
-
-    import psutil
-
-    partitions = psutil.disk_partitions(all=True)
-
-    # Sort by length in descending order. This ensures that the longest matching mount-point is used
-    partitions.sort(key=lambda p: len(p.mountpoint), reverse=True)
-
-    matched_partition = None
-    for part in partitions:
-        mnt = part.mountpoint
-        if not mnt.endswith(os.sep):  # Ensure mount-point has a trailing slash for consistent matching
-            mnt += os.sep
-
-        if path.startswith(mnt):
-            matched_partition = part
-            break
-    if matched_partition is None:
+    Heuristics that flag network devices:
+      - //server/share (CIFS/SMB)
+      - server:/export (NFS)
+      - scheme://host/path
+    """
+    if not dev:
         return False
+    d = dev.lower()
+    if d.startswith("//"):
+        return True
+    if "://" in d:
+        return True
+    if ":" in dev and not dev.startswith("/"):
+        return True
+    return False
 
-    remote_fs_types = {'nfs', 'cifs', 'smb', 'ssh', 'fuse', 'afp', 'coda', 'gfs', 'lustre', 'gluster', 'ceph', 'dav'}
-    fs_type = matched_partition.fstype.lower()
-    if any([fs_type.startswith(x) for x in remote_fs_types]):
+def is_path_local_best_effort(
+        path: str,
+        partitions: Optional[Iterable[Partition]] = None,
+) -> bool:
+    """
+    Best-effort: True if path resides on a local filesystem, False if on network/cluster FS.
+    - Picks the deepest matching mountpoint.
+    - Classifies using fstype & device heuristics.
+    """
+    # normalize the path (resolve symlinks so we match the actual mount)
+    path = os.path.realpath(path)
+    parts = list(partitions) if partitions is not None else disk_partitions_all()
+    if not parts:
+        return True  # if we can't tell, assume local
+
+    best: Optional[Partition] = None
+    best_len = -1
+
+    for p in parts:
+        mnt = os.path.normpath(p.mountpoint or "")
+        if not mnt:
+            continue
+        # boundary-aware prefix match
+        if path == mnt or path.startswith(mnt.rstrip(os.sep) + os.sep):
+            if len(mnt) > best_len:
+                best = p
+                best_len = len(mnt)
+
+    if best is None:
+        return True  # no matching mount -> assume local
+
+    if _is_non_local_fstype(best.fstype):
         return False
-
-    # On some systems, remote mounts may appear as something like //server/share for cifs.
-    # Check if device looks like a network path.
-    device = matched_partition.device.lower()
-    if device.startswith('//') or device.startswith('\\\\'):
+    if _looks_like_network_device(best.device):
         return False
-
     return True
 
 

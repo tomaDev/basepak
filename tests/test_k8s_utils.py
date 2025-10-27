@@ -4,7 +4,7 @@ import logging
 import subprocess
 import os
 from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest  # type: ignore
 
@@ -226,7 +226,8 @@ def test_ensure_pvc_bind(tmp_path, mode):
     subprocess.run(f'kubectl delete {pv_name} --wait=false --ignore-not-found', shell=True, check=False)
 
 @pytest.mark.parametrize(
-    "mock_partitions,test_path,expected", [
+    "mock_partitions,test_path,expected",
+    [
         ([MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/home/user/file.txt', True),
         ([MagicMock(mountpoint='/', fstype='xfs', device='/dev/sdb2')], '/var/log/messages', True),
         ([MagicMock(mountpoint='/mnt/remote_share', fstype='nfs', device='server:/export/path'),
@@ -241,11 +242,11 @@ def test_ensure_pvc_bind(tmp_path, mode):
           MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/gluster_volume/data', False),
         ([MagicMock(mountpoint='/mnt/cephfs', fstype='ceph', device='mon1,mon2,mon3:/'),
           MagicMock(mountpoint='/', fstype='ext4', device='/dev/sda1')], '/mnt/cephfs/data', False),
-    ]
+    ],
 )
-def test_is_path_local_best_effort(mock_partitions, test_path, expected):
-    with patch('psutil.disk_partitions', return_value=mock_partitions):
-        assert k8s_utils.is_path_local_best_effort(test_path) is expected
+def test_is_path_local_best_effort(monkeypatch, mock_partitions, test_path, expected):
+    monkeypatch.setattr(k8s_utils, "disk_partitions_all", lambda: mock_partitions)
+    assert k8s_utils.is_path_local_best_effort(test_path) is expected
 
 def test_kubectl_upload_file_dry_run(tmp_path):
     with _fresh_pod() as pod:
