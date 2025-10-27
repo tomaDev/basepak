@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Callable, Dict, List, Optional
-
-import psutil
 
 from . import log, time
 
@@ -156,8 +155,29 @@ def _await_stat(threshold: Optional[float] = None, iterations: Optional[int] = 6
 
 
 def _get_load_avg() -> float:
-    return psutil.getloadavg()[0] / psutil.cpu_count()
+    """Return normalized system load average (1-minute average / CPU count)."""
+    try:
+        load1, _, _ = os.getloadavg()
+        cpu_count = os.cpu_count() or 1
+        return load1 / cpu_count
+    except (OSError, AttributeError):
+        # os.getloadavg() not available on Windows or restricted envs
+        return 0.0
 
 
 def _get_virtual_memory() -> float:
-    return psutil.virtual_memory()._asdict()['percent']  # w0212
+    """Return memory usage percent (used / total * 100)."""
+    try:
+        with open("/proc/meminfo") as f:
+            info = {}
+            for line in f:
+                key, value = line.split(":", 1)
+                info[key.strip()] = int(value.strip().split()[0])  # in kB
+
+        total = info.get("MemTotal", 1)
+        available = info.get("MemAvailable", info.get("MemFree", 0))
+        used = total - available
+        return used / total * 100
+    except FileNotFoundError:
+        # /proc/meminfo not available (e.g. non-Linux OS)
+        return 0.0

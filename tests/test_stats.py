@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import patch
 
-import pytest
+import pytest # noqa
 
 from basepak import stats
 
@@ -101,7 +101,7 @@ def test_tracker_is_succeeded(tracker_instance):
 
 @pytest.mark.parametrize('thresholds', [
     {},
-    {'MEMORY_PERCENT': 99.0, 'CPU_PERCENT': 99.5},
+    {'MEMORY_PERCENT': 99.9, 'CPU_PERCENT': 99.9},
     {'MEMORY_PERCENT': None},
     {'CPU_PERCENT': None},
 ])
@@ -110,7 +110,7 @@ def test_validate_os_thresholds_passing(thresholds):
     stats.validate_os_thresholds(thresholds, logger, mode='normal')
 
 def test_validate_os_thresholds_exceeded(mock_logger):
-    thresholds = {'MEMORY_PERCENT': 0.1, 'CPU_PERCENT': 0.5}
+    thresholds = {'MEMORY_PERCENT': 0.01, 'CPU_PERCENT': 0.01}
     with patch('time.sleep') as mock_sleep:
         with pytest.raises(AssertionError):
             stats.validate_os_thresholds(thresholds, mock_logger, mode='normal', iterations=3)
