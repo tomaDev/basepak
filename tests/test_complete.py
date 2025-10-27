@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-import pytest
+import pytest # noqa
 
 from basepak.complete import generate_script
 

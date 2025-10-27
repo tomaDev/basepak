@@ -1,5 +1,6 @@
 import functools
 import os
+from pathlib import Path
 from typing import AnyStr, Optional
 
 import click
@@ -27,7 +28,7 @@ from .execute import Executable
 # 6. Replace { and } with {{ and }}
 # 7. Replace package_name with {0} for lower and {1} for upper
 # 8. Replace the `complete -o nosort` with some other option
-# 9. Re 5-8: DO NOT TRUST AI tools. They lie. Validate manually
+# 9. Re 5-8: DO NOT TRUST AI tools. Validate manually
 COMPLETE_SCRIPT_BASH = """
 _{0}_completion() {{
     local IFS=$'\\n'
@@ -122,25 +123,47 @@ def get_full_path(base_path, default_file) -> AnyStr:
         base_path = os.path.join(base_path or os.path.expanduser('~'), default_file)
     return os.path.realpath(base_path)
 
+def _proc_comm_from_procfs(pid: int) -> Optional[str]:
+    # Linux-only; fast and accurate when available
+    try:
+        return Path(f"/proc/{pid}/comm").read_text().strip()
+    except Exception:
+        return None
+
+def _proc_comm_from_ps(pid: int) -> Optional[str]:
+    # Works on most POSIX systems (Linux, macOS, BSD)
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["ps", "-o", "comm=", "-p", str(pid)],
+            capture_output=True, text=True, check=False
+        )
+        name = r.stdout.strip()
+        return name or None
+    except Exception:
+        return None
+
+def _best_effort_name_for_pid(pid: int, default: str) -> str:
+    import sys
+    return (
+            _proc_comm_from_procfs(pid)
+            or _proc_comm_from_ps(pid)
+            or (Path(sys.executable).name if pid == os.getpid() and sys.executable else None)
+            or (Path(sys.argv[0]).name if sys.argv and sys.argv[0] else None)
+            or default
+    )
 
 @functools.lru_cache
 def proc_name_best_effort(default: str = '') -> str:
-    """Get the name of the current process
-    :param default: Default name to return if the name is not found
-    :return: Process name"""
-    import psutil
+    """Best-effort OS process name for the current process"""
     try:
-        return psutil.Process(os.getpid()).name() or default
-    except Exception:  # noqa best effort
+        return _best_effort_name_for_pid(os.getpid(), default)
+    except Exception: # noqa best effort
         return default
 
-
 def proc_parent_name_best_effort(default: str = '') -> str:
-    """Get the name of the parent of current process
-    :param default: Default name to return if the name is not found
-    :return: Parent process name"""
-    import psutil
+    """Best-effort OS process name for the parent process"""
     try:
-        return psutil.Process(os.getppid()).name() or default
-    except Exception:  # noqa best effort
+        return _best_effort_name_for_pid(os.getppid(), default)
+    except Exception: # noqa best effort
         return default
