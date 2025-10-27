@@ -861,7 +861,7 @@ def is_path_local_best_effort(path: str | Path) -> bool:
             matched_partition = part
             break
     if matched_partition is None:
-        raise False
+        return False
 
     remote_fs_types = {'nfs', 'cifs', 'smb', 'ssh', 'fuse', 'afp', 'coda', 'gfs', 'lustre', 'gluster', 'ceph', 'dav'}
     fs_type = matched_partition.fstype.lower()
