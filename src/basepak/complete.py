@@ -101,6 +101,9 @@ def generate_script(
     profile_path = get_full_path(profile, profile_filename_default)
 
     source_cmd = f'source {script_path}'
+    if not os.path.exists(profile_path):
+        logger.error(f'Profile file {profile_path} does not exist! Either create it or set a different profile file')
+        return 2
     with open(profile_path) as f:
         if source_cmd in [line.strip() for line in f.readlines()]:
             logger.info(f'Source command exists in {profile_path}\nSkipping')
