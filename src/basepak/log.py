@@ -241,16 +241,6 @@ def get_logger(name: Optional[str] = None, level: Optional[str | int] = None, ) 
     return logger
 
 
-def _write_table_to_file(table_: rich.table.Table) -> None:
-    with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
-        w = console.Console(
-            width=_terminal_size_columns,
-            force_terminal=not is_yes(os.environ.get('NO_COLOR')),
-            soft_wrap=True,
-            file=f,
-        )
-        w.print(table_)
-
 def _set_log_path() -> str:
     log_file = os.environ.setdefault('BASEPAK_LOG_FILE', LOG_FILE_NAME_DEFAULT)
     log_dir = os.environ.setdefault('BASEPAK_LOG_DIR', os.path.expanduser('~'))
@@ -264,8 +254,15 @@ def _set_log_path() -> str:
 
 def print_table(table_: rich.table.Table) -> None:
     rich.print(table_)
-    if is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
-        _write_table_to_file(table_)
+    if not is_yes(os.environ.get('BASEPAK_WRITE_LOG_TO_FILE')):
+        return
+    with open(_set_log_path(), 'a', encoding='utf-8', errors='replace') as f:
+        console.Console(
+            width=_terminal_size_columns,
+            force_terminal=not is_yes(os.environ.get('NO_COLOR')),
+            soft_wrap=True,
+            file=f,
+        ).print(table_)
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -325,12 +322,8 @@ def redact_file(path: AnyStr, keys: Optional[Sequence[str]] = None) -> None:
     with open(path, encoding='utf-8', errors='replace') as f:
         content = f.read()
 
-    import re
     for pattern, replacement in patterns.items():
-        content = re.sub(pattern, replacement,
-                         content) # noqa
+        content = re.sub(pattern, replacement, content)
 
     with open(path, 'w', encoding='utf-8', errors='replace') as f:
-        f.write(
-            content # noqa
-        )
+        f.write(content)

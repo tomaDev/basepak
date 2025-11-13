@@ -367,3 +367,52 @@ def test_prep_binary(mode, tmp_path, refresh_rate):
 
     if mode != 'dry-run':
         assert os.access(f'{tmp_path}/{name}', os.X_OK)
+
+JOB_EXIT_CODE_TEMPLATE = """
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {name}
+  namespace: default
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 10
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: gibby
+        image: busybox:stable
+        command: ["/bin/sh", "-c", "exit {code}"]
+"""
+
+@pytest.mark.parametrize("exit_code", [0, 51, 52])
+def test_get_job_latest_pod_container_returncode(exit_code):
+    """
+    Create a real Job whose 'gibby' container exits with a specific code,
+    wait for completion, and verify that get_job_latest_pod_container_returncode
+    sees that code.
+    """
+    job_name = f'exit-code-{exit_code}'
+
+    job_yaml = JOB_EXIT_CODE_TEMPLATE.format(name=job_name, code=exit_code)
+    subprocess.run(
+        "kubectl create -f -",
+        input=job_yaml.encode(),
+        shell=True,
+    )
+    try:
+        k8s_utils.await_k8s_job_completion({
+            'NAMESPACE': 'default',
+            'JOB_NAME': job_name,
+            'MODE': 'unsafe',
+        })
+    except Exception as e:
+        pass
+    rc = k8s_utils.get_job_latest_pod_container_returncode(
+        kubectl='kubectl',
+        job_name=job_name,
+        container_name="gibby",
+    )
+
+    assert rc == exit_code
