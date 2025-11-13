@@ -1088,3 +1088,34 @@ def get_size_on_remote(spec, path) -> str:
     if size := next((x.strip() for x in resp.stdout.strip().splitlines() if x), ''):
         return size.split()[0].strip().replace("'", "")
     return ''
+
+
+def get_job_latest_pod_container_returncode(kubectl: Executable | str, job_name: str, container_name: str) -> int:
+    """
+    Get the exit code(s) of the latest pod for a given Job/container.
+
+    :param kubectl: Executable wrapper for kubectl.
+    :param job_name: Name of the Job (used in the pod selector).
+    :param container_name: Name of the container in the pod.
+    :return: Exit code as an int.
+    :raise RuntimeError: If stdout is empty or not castable to int.
+    """
+    jsonpath = (
+            "{range .items[-1:]}{range .status.containerStatuses[?(@.name==\"" + container_name +
+            "\")]}{.state.terminated.exitCode}{.lastState.terminated.exitCode}{end}{end}"
+    )
+    if isinstance(kubectl, str):
+        kubectl = Executable('kubectl', kubectl, logger=log.get_logger(name='plain'))
+
+    resp = kubectl.run("get pods --sort-by=.metadata.creationTimestamp --selector",
+                       f"job-name={job_name} --output=jsonpath='{jsonpath}'")
+    out = resp.stdout.strip()
+    print('result:', out)
+    if not out:
+        raise RuntimeError(f"{job_name=}, {container_name=}: Failed to fetch return code! {resp.stderr}")
+    try:
+        return int(out)
+    except ValueError as e:
+        raise RuntimeError(
+            f"{job_name=}, {container_name=}: Non-integer exit code output: {out!r}\n{resp.stderr}"
+        ) from e
