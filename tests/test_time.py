@@ -12,6 +12,7 @@ from basepak.time import (
     str_to_timedelta,
     strptime,
     timedelta_to_human_readable,
+    seconds_to_human_readable,
 )
 
 
@@ -102,3 +103,16 @@ def test_sleep_zero(zero_time):
 ])
 def test_timedelta_to_human_readable(td, string):
     assert timedelta_to_human_readable(td).strip() == string
+
+@pytest.mark.parametrize('seconds, string', [
+    (3600, '1h'),
+    (90, '1m30s'),
+    (45, '45s'),
+    (0.001, '1ms'),
+    (0.0, '0ms'),
+    (0, '0ms'),
+    (-45, '-45s'),
+    (-0.001, '-1ms'),
+])
+def test_seconds_to_human_readable(seconds, string):
+    assert seconds_to_human_readable(seconds).strip() == string
