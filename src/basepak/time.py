@@ -95,9 +95,10 @@ def sleep(seconds: float) -> None:
     time.sleep(seconds)
 
 
-def timedelta_to_human_readable(td: timedelta) -> str:
+def timedelta_to_human_readable(td: timedelta, rjust: tuple[int, str] = (6, ' ')) -> str:
     """Convert a timedelta object to a human-readable string
     :param td: timedelta object
+    :param rjust: params for rjust on result. Str must be of length 1. Specify (0, ' ') for nop
     :return: human-readable string of the timedelta in the format of 'XdYhZmWsMms'
     """
     total_seconds = int(td.total_seconds())
@@ -120,4 +121,12 @@ def timedelta_to_human_readable(td: timedelta) -> str:
     if not parts:
         parts.append(f'{1 if td.microseconds else 0}ms')
 
-    return ''.join(parts).rjust(6, ' ')
+    return ''.join(parts).rjust(*rjust)
+
+def seconds_to_human_readable(seconds: float) -> str:
+    """Convert a duration in seconds to a human-readable string.
+    :param seconds: duration in seconds (can be negative)
+    :return: human-readable string in the format of 'XdYhZmWsMms'
+    """
+    return ('-' if seconds < 0 else '') + timedelta_to_human_readable(timedelta(seconds=abs(seconds)), rjust=(0, ' '))
+
