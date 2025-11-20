@@ -1,59 +1,30 @@
-import logging
 import subprocess
-from unittest.mock import MagicMock, patch
 
-import pytest
+import logging
+import pytest  # noqa
 import textwrap
 import shlex
 import sys
 
-
 from basepak.execute import Executable, subprocess_stream
 
 
-@pytest.fixture
-def mock_logger():
-    logger = MagicMock(spec=logging.Logger)
-    logger.name = "test_logger"
-    return logger
-
-@pytest.fixture
-def mock_popen():
-    with patch("subprocess.Popen") as mock_popen:
-        yield mock_popen
-
-@pytest.fixture
-def mock_run():
-    with patch("subprocess.run") as mock_run:
-        yield mock_run
-
-@pytest.fixture
-def mock_get_logger(mock_logger):
-    with patch("basepak.log.get_logger", return_value=mock_logger):
-        yield
-
 @pytest.mark.parametrize("cmd, stdout_data, stderr_data, return_code", [
-    ("echo 'hello'", [b"hello\n"], [], 0),
-    ("false", [], [b"error\n"], 1),
+    ("echo 'hello'", ["hello"], [], 0),
+    ("false", [], ["Command failed: false"], 1),
 ])
-def test_subprocess_stream(cmd, stdout_data, stderr_data, return_code, mock_logger, mock_popen, mock_get_logger):
-    process_mock = MagicMock()
-    process_mock.stdout = stdout_data
-    process_mock.stderr = stderr_data
-    process_mock.wait.return_value = return_code
-    process_mock.returncode = return_code
-    mock_popen.return_value = process_mock
-
+def test_subprocess_stream(cmd, stdout_data, stderr_data, return_code, capsys):
     if return_code == 0:
-        subprocess_stream(cmd, logger=mock_logger)
+        subprocess_stream(cmd, logger_name='plain')
+        out = capsys.readouterr().out.splitlines()
         for line in stdout_data:
-            mock_logger.info.assert_any_call(line.decode('utf-8', errors='replace').rstrip())
-        mock_logger.error.assert_not_called()
+            assert line in out
     else:
         with pytest.raises(subprocess.CalledProcessError):
-            subprocess_stream(cmd, logger=mock_logger)
+            subprocess_stream(cmd, logger_name='plain')
+        out = capsys.readouterr().out.splitlines()
         for line in stderr_data:
-            mock_logger.error.assert_any_call(line.decode('utf-8', errors='replace').rstrip())
+            assert line in out
 
 @pytest.mark.parametrize("cmd_base, args, expected_cmd", [
     ("echo", ["hello"], "echo hello"),
@@ -66,56 +37,148 @@ def test_executable_with_(cmd_base, args, expected_cmd):
 
 def test_executable_assert_executable_success():
     exe = Executable('python')
-    with patch('shutil.which', return_value='/usr/bin/python'):
-        exe.assert_executable()
+    exe.assert_executable()
 
 def test_executable_assert_executable_failure():
-    exe = Executable('nonexistent_cmd')
-    with patch('shutil.which', return_value=None):
-        with pytest.raises(NameError):
-            exe.assert_executable()
+    exe = Executable('nonexistent_cmd_123')
+    with pytest.raises(NameError):
+        exe.assert_executable()
 
-def test_executable_show(mock_logger):
-    exe = Executable('echo', logger=mock_logger)
+def test_executable_show(capsys):
+    exe = Executable('echo')
     exe.show('hello')
-    mock_logger.warning.assert_called_once_with('echo hello')
+    assert 'echo hello' in capsys.readouterr().out
 
-def test_executable_run_success(mock_run, mock_logger):
-    mock_run.return_value = subprocess.CompletedProcess(args='echo "hello"', returncode=0, stdout=b'hello\n')
-    exe = Executable('echo', logger=mock_logger)
+def test_executable_run_success():
+    exe = Executable('echo')
     result = exe.run('"hello"')
-    mock_run.assert_called_once()
-    assert result.stdout == b'hello\n'
+    assert result.stdout == 'hello\n'
 
-def test_executable_run_failure(mock_run, mock_logger):
-    mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd='false')
-    exe = Executable('false', logger=mock_logger)
+def test_executable_run_failure():
+    exe = Executable('false')
     with pytest.raises(subprocess.CalledProcessError):
         exe.run()
 
-def test_executable_stream_success(mock_popen, mock_logger, mock_get_logger):
-    process_mock = MagicMock()
-    process_mock.stdout = [b"output\n"]
-    process_mock.stderr = []
-    process_mock.wait.return_value = 0
-    mock_popen.return_value = process_mock
+def test_executable_stream_success(capsys):
+    exe = Executable('echo')
+    exe.stream("output")
+    assert 'output' in capsys.readouterr().out.splitlines()
 
-    exe = Executable('echo', logger=mock_logger)
-    exe.stream("'output'")
-    mock_logger.info.assert_any_call('output')
-
-def test_executable_stream_failure(mock_popen, mock_logger, mock_get_logger):
-    process_mock = MagicMock()
-    process_mock.stdout = []
-    process_mock.stderr = [b"error\n"]
-    process_mock.wait.return_value = 1
-    process_mock.returncode = 1
-    mock_popen.return_value = process_mock
-
-    exe = Executable('false', logger=mock_logger)
+def test_executable_stream_failure(capsys):
+    exe = Executable('false')
     with pytest.raises(subprocess.CalledProcessError):
         exe.stream()
-    mock_logger.error.assert_any_call('error')
+    assert 'Command failed: false' in capsys.readouterr().out
+
+@pytest.mark.parametrize(
+    "cmd, expected_lines",
+    [
+        ("sh -c 'echo hello'", ["hello"]),
+        ("sh -c 'printf \"line1\\nline2\\n\"'", ["line1", "line2"]),
+    ],
+)
+def test_subprocess_stream_success_stdout_logged(cmd, expected_lines, caplog):
+    """On success, stdout should be streamed as INFO logs, no exception."""
+    subprocess_stream(cmd)
+
+    messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.INFO]
+    for line in expected_lines:
+        assert line in messages
+
+
+def test_subprocess_stream_failure_raises_and_captures_stderr(caplog):
+    """On non-zero exit, raises CalledProcessError and stderr is captured in .stderr."""
+    cmd = "sh -c 'echo oops >&2; exit 1'"
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(subprocess.CalledProcessError) as exc_info:
+            subprocess_stream(cmd)
+
+        err = exc_info.value
+        assert err.returncode == 1
+        assert err.stderr == "oops"
+
+    error_messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.ERROR]
+    assert "oops" in error_messages
+    assert any("Command failed" in m for m in error_messages)
+
+
+def test_subprocess_stream_output_file_only(tmp_path, caplog):
+    """When output_file is set, stdout goes to the file; stderr (if any) is logged."""
+    out_file = tmp_path / "stdout.txt"
+    cmd = "sh -c 'echo out; echo err >&2'"
+
+    with caplog.at_level(logging.INFO):
+        subprocess_stream(cmd, output_file=out_file)
+
+    assert out_file.read_text().splitlines() == ["out"]
+
+    error_messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.ERROR]
+    assert "err" in error_messages
+
+    info_messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.INFO]
+    assert "out" not in info_messages
+
+
+def test_subprocess_stream_error_file_only(tmp_path, caplog):
+    """When error_file is set, stderr goes to the file; stdout is logged."""
+    err_file = tmp_path / "stderr.txt"
+    cmd = "sh -c 'echo out; echo err >&2'"
+
+    with caplog.at_level(logging.INFO):
+        subprocess_stream(cmd, error_file=err_file)
+
+    assert err_file.read_text().splitlines() == ["err"]
+
+    info_messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.INFO]
+    assert "out" in info_messages
+
+    error_messages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.ERROR]
+    assert "err" not in error_messages
+
+
+def test_subprocess_stream_both_files_no_logging(tmp_path, caplog):
+    """When both output_file and error_file are set, nothing is logged; everything goes to files."""
+    out_file = tmp_path / "stdout.txt"
+    err_file = tmp_path / "stderr.txt"
+    cmd = "sh -c 'echo out; echo err >&2'"
+
+    with caplog.at_level(logging.INFO):
+        subprocess_stream(cmd, output_file=out_file, error_file=err_file)
+
+    assert out_file.read_text().splitlines() == ["out"]
+    assert err_file.read_text().splitlines() == ["err"]
+
+    messages = [rec.getMessage() for rec in caplog.records]
+    assert messages == []
+
+
+def test_subprocess_stream_rejects_stdout_stderr_kwargs():
+    """Passing stdout/stderr via kwargs should raise ValueError."""
+    with pytest.raises(ValueError, match="manages stdout/stderr"):
+        subprocess_stream("sh -c 'echo hi'", stdout=subprocess.PIPE)
+
+
+def test_subprocess_stream_logger_name_mismatch():
+    """Providing a logger and a different logger_name should raise ValueError."""
+    with pytest.raises(ValueError, match="Logger name mismatch"):
+        subprocess_stream("sh -c 'echo hi'", logger=logging.getLogger(name='some-name'), logger_name='other-name')
+
+
+def test_subprocess_stream_stderr_tail_truncation():
+    """If stderr is very long, only the last 1000 lines should be kept in CalledProcessError.stderr."""
+    total_lines = 1100
+    cmd = "sh -c 'for i in $(seq 1 " + str(total_lines) + "); do echo line$i >&2; done; exit 1'"
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        subprocess_stream(cmd)
+
+    err = exc_info.value
+    lines = err.stderr.splitlines()
+    assert len(lines) == 1000
+    assert lines[0] == "line101"
+    assert lines[-1] == "line1100"
+
 
 @pytest.mark.parametrize('progress_line', [
     '[#####     ] 25%',
