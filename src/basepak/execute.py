@@ -17,6 +17,9 @@ def _get_console_from_logger(logger: logging.Logger):
     raise RuntimeError('No console available')
 
 
+def _decode(line: str | bytes) -> str:
+    return (line.decode('utf-8', errors='replace') if isinstance(line, bytes) else line).rstrip()
+
 
 def subprocess_stream(
         cmd: str, output_file: Optional[str | Path] = None, error_file: Optional[str | Path] = None, *args, **kwargs
@@ -28,12 +31,17 @@ def subprocess_stream(
     :param error_file:  file to write stderr to
     :param args:        additional args to pass to subprocess call
     :param kwargs:      additional kwargs to pass to subprocess call
+
+    :raises CalledProcessError: if subprocess call failed
+    :raises ValueError: if stdout or stderr provided as kwargs
+    :raises ValueError: if provided logger_name differs from name attr of provided logger object
     """
+    if 'stdout' in kwargs or 'stderr' in kwargs:
+        raise ValueError('subprocess_stream manages stdout/stderr; do not pass them in kwargs')
+
     logger_name = kwargs.pop('logger_name', None)
     logger = kwargs.pop('logger', None)
-    # noinspection PyUnresolvedReferences
     if logger_name and logger and logger_name != logger.name:
-        # noinspection PyUnresolvedReferences
         raise ValueError(f'Logger name mismatch: {logger_name} != {logger.name}')
 
     from . import log
@@ -42,25 +50,58 @@ def subprocess_stream(
     stdout = open(output_file, 'w') if output_file else subprocess.PIPE
     stderr = open(error_file, 'w') if error_file else subprocess.PIPE
 
-    stderr_output = []
-
     import contextlib
     import shlex
+    import select
+
+    from collections import deque
+
+    stderr_output: deque[str] = deque(maxlen=1000)
+
     with stdout if output_file else contextlib.nullcontext(), stderr if error_file else contextlib.nullcontext():
-        out = subprocess.Popen(shlex.split(cmd), stdout=stdout, stderr=stderr, *args, **kwargs)
-        if stdout == subprocess.PIPE:
-            for line in out.stdout:
-                logger.info(line.decode('utf-8', errors='replace').rstrip())
-        if stderr == subprocess.PIPE:
-            for line in out.stderr:
-                decoded_line = line.decode('utf-8', errors='replace').rstrip()
-                logger.error(decoded_line)
-                stderr_output.append(decoded_line)
+        proc = subprocess.Popen(shlex.split(cmd), stdout=stdout, stderr=stderr, *args, **kwargs)
 
-    if out.wait() != 0:
+        if stdout is subprocess.PIPE or stderr is subprocess.PIPE:
+            fd_to_stream = {}
+            if stdout is subprocess.PIPE and proc.stdout is not None and hasattr(proc.stdout, 'fileno'):
+                fd_to_stream[proc.stdout.fileno()] = ('stdout', proc.stdout)
+            if stderr is subprocess.PIPE and proc.stderr is not None and hasattr(proc.stderr, 'fileno'):
+                fd_to_stream[proc.stderr.fileno()] = ('stderr', proc.stderr)
+
+            while fd_to_stream:
+                rlist, _, xlist = select.select(list(fd_to_stream.keys()), [], [])
+
+                for fd in xlist:
+                    stream_name, _ = fd_to_stream.get(fd, (None, None))
+                    if stream_name is None:
+                        continue
+                    stderr_output.append(f"Exceptional condition on {stream_name} stream (fd={fd})")
+                    logger.error(stderr_output[-1])
+
+                    fd_to_stream.pop(fd, None) # stop reading from broken stream
+
+                for fd in rlist:
+                    if fd not in fd_to_stream:  # may have been removed due to exceptional condition
+                        continue
+
+                    stream_name, stream = fd_to_stream[fd]
+                    line = stream.readline()
+
+                    if not line:
+                        del fd_to_stream[fd]
+                        continue
+
+                    if stream_name == 'stdout':
+                        logger.info(_decode(line))
+                    else:
+                        stderr_output.append(_decode(line))
+                        logger.error(stderr_output[-1])
+
+        ret = proc.wait()
+
+    if ret != 0:
         logger.error(f'Command failed: {cmd}')
-        raise subprocess.CalledProcessError(out.returncode, cmd, stderr='\n'.join(stderr_output))
-
+        raise subprocess.CalledProcessError(ret, cmd, stderr='\n'.join(stderr_output))
 
 class Executable:
     """Executable object to run commands with logging and error handling"""
