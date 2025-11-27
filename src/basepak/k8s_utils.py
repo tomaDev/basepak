@@ -161,17 +161,31 @@ def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
     if resp.returncode:
         raise RuntimeError(resp.stderr)
 
-    from .units import Unit
 
     dest_dir = os.path.dirname(dest)
     logger.debug(f'{dest_dir=}')
 
     import shutil
-    available_disk = Unit(f'{shutil.disk_usage(dest_dir).free} B')
+    from .units import Unit
 
-    needed_disk =  Unit(resp.stdout.split()[0])
-    if needed_disk > available_disk:
-        raise OSError(f'Insufficient space on local host\n{needed_disk=} > {available_disk=}')
+    try:
+        available_disk = Unit(f'{shutil.disk_usage(dest_dir).free} B')
+    except Exception as e:
+        logger.error(e)
+        raise e
+
+    try:
+        needed_disk = Unit(resp.stdout.split()[0])
+    except Exception as e:
+        logger.error(e)
+        raise e
+
+    try:
+        if needed_disk > available_disk:
+            raise OSError(f'Insufficient space on local host\n{needed_disk=} > {available_disk=}')
+    except Exception as e:
+        logger.error(e)
+        raise e
 
     kubectl.stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
     return 0
