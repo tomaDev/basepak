@@ -155,22 +155,23 @@ def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
     kubectl.stream('wait --for=condition=ready pod --timeout=120s', waitable)
 
     resp = kubectl.run('exec', remote, '-- du -sh', s_path, check=False)
-    if resp.returncode:
-        logger.error(resp.stderr)
-        raise RuntimeError(resp.stderr)
+    logger.debug(resp.stdout)
+    logger.debug(resp.stderr)
 
-    import shutil
+    if resp.returncode:
+        raise RuntimeError(resp.stderr)
 
     from .units import Unit
 
     dest_dir = os.path.dirname(dest)
-    needed_disk =  Unit(resp.stdout.split()[0])
+    logger.debug(f'{dest_dir=}')
+
+    import shutil
     available_disk = Unit(f'{shutil.disk_usage(dest_dir).free} B')
 
+    needed_disk =  Unit(resp.stdout.split()[0])
     if needed_disk > available_disk:
-        msg = f'Insufficient space on local host\n{needed_disk=} > {available_disk=}'
-        logger.error(msg)
-        raise OSError(msg)
+        raise OSError(f'Insufficient space on local host\n{needed_disk=} > {available_disk=}')
 
     kubectl.stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
     return 0
