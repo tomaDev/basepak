@@ -1,11 +1,15 @@
-__version__ = '0.0.109'
+__version__ = '0.0.110'
 
 import os
 
 if os.environ.get('NO_COLOR'):
     import click
 
-    def no_color_style(text, *args, **kwargs):  # noqa unused
+    def no_color_style(
+            text,
+            *args,    # noqa unused
+            **kwargs, # noqa unused
+    ):
         return text
 
     click.style = no_color_style

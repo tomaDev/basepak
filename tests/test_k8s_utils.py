@@ -248,21 +248,24 @@ def test_is_path_local_best_effort(monkeypatch, mock_partitions, test_path, expe
     monkeypatch.setattr(k8s_utils, "disk_partitions_all", lambda: mock_partitions)
     assert k8s_utils.is_path_local_best_effort(test_path) is expected
 
-def test_kubectl_upload_file_dry_run(tmp_path):
-    with _fresh_pod() as pod:
-        tmp_file = tmp_path / 'file.yaml'
-        tmp_file.write_text('test content')
+@pytest.mark.parametrize(
+    'test_path,expected', [
+        ('/', True),
+        ('/users', True),
+        ('/users/non-existent-user', False),
+        ('/nonexistent-mount', False),
+    ])
+def test_is_path_local(test_path, expected):
+    assert k8s_utils.is_path_local(test_path) is expected
 
-        k8s_utils.kubectl_cp(src=tmp_file, dest=f'{pod}:/tmp/file.yaml', mode='dry-run', retries=1)
+def test_get_kubectl_version():
+    assert isinstance(k8s_utils.get_kubectl_version(), Version)
 
-def test_kubectl_upload_dir_dry_run(tmp_path):
-    with _fresh_pod() as pod:
-        tmp_dir = tmp_path / 'temporary'
-        tmp_dir.mkdir()
-        tmp_file = tmp_dir / 'file.yaml'
-        tmp_file.write_text('test content')
-
-        k8s_utils.kubectl_cp(src=tmp_dir, dest=f'{pod}:/tmp/dir', mode='dry-run', retries=1)
+def test_kubectl_dump(tmp_path):
+    tmp_file = tmp_path / 'tmp.yaml'
+    k8s_utils.kubectl_dump('kubectl version --client', tmp_file, mode='unsafe')
+    assert tmp_file.exists()
+    assert tmp_file.read_text()
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_file(tmp_path, mode):
@@ -278,19 +281,6 @@ def test_kubectl_upload_download_file(tmp_path, mode):
 
         # download
         k8s_utils.kubectl_cp(dest=tmp_file, src=remote_path, mode=mode, retries=1)
-
-@pytest.mark.parametrize(
-    'test_path,expected', [
-        ('/', True),
-        ('/users', True),
-        ('/users/non-existent-user', False),
-        ('/nonexistent-mount', False),
-    ])
-def test_is_path_local(test_path, expected):
-    assert k8s_utils.is_path_local(test_path) is expected
-
-def test_get_kubectl_version():
-    assert isinstance(k8s_utils.get_kubectl_version(), Version)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_kubectl_upload_download_dir(tmp_path, mode):
@@ -308,24 +298,46 @@ def test_kubectl_upload_download_dir(tmp_path, mode):
 
         k8s_utils.kubectl_cp(dest=local_dir, src=remote_path, mode=mode, retries=1)
 
-def test_kubectl_dump(tmp_path):
-    tmp_file = tmp_path / 'tmp.yaml'
-    k8s_utils.kubectl_dump('kubectl version --client', tmp_file, mode='unsafe')
-    assert tmp_file.exists()
-    assert tmp_file.read_text()
-
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
-def test_kubectl_transfer_large_file_between_pods(tmp_path, mode):
+def test_kubectl_transfer_large_file_between_pods(tmp_path, mode, monkeypatch):
+    """Validate that during remote->remote transfer the content doesn't touch local storage"""
+    for var in ('TMPDIR', 'TMP', 'TEMP'):  # Route *all* temp usage to tmp_path
+        monkeypatch.setenv(var, str(tmp_path))
+
     with _fresh_pod() as pod1, _fresh_pod() as pod2:
         tmp_file = tmp_path / 'tmp.yaml'
-        tmp_file.write_text('a' * 10_000_000)
+        tmp_file.write_text('a' * 50_000_000)
 
         remote_path_pod1 = f'{pod1}:/tmp/file'
         remote_path_pod2 = f'{pod2}:/tmp/file'
+
         k8s_utils.kubectl_cp(src=tmp_file, dest=remote_path_pod1, mode='unsafe', retries=1)
 
-        k8s_utils.kubectl_cp(src=remote_path_pod1, dest=remote_path_pod2, mode=mode, retries=1)
+        baseline = {p.relative_to(tmp_path) for p in tmp_path.rglob('*')}
+        violations: list = []
 
+        import threading
+        stop = threading.Event()
+
+        def watcher() -> None:
+            import time
+            while not stop.is_set():
+                current = {p.relative_to(tmp_path) for p in tmp_path.rglob('*')}
+                new_paths = current - baseline
+                if new_paths:
+                    violations.extend(new_paths)
+                    return
+                time.sleep(0.05)  # 50ms - should be frequently enough that a 50MB file cannot "blink" between polls
+
+        t = threading.Thread(target=watcher, daemon=True)
+        t.start()
+        try:
+            k8s_utils.kubectl_cp(src=remote_path_pod1, dest=remote_path_pod2, mode=mode, retries=1)
+        finally:
+            stop.set()
+            t.join()
+
+        assert not violations, f'Host disk was used during remote->remote copy:\n' + '\n'.join(violations)
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 def test_await_k8s_job_completion_complete_plain(mode):
