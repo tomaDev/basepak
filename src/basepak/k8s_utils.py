@@ -6,15 +6,17 @@ import functools
 import json
 import logging
 import os
+import platform
+import re
+import subprocess
+from collections import namedtuple
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Optional, Set, Union
-
+from typing import Dict, Optional, Set, Union, List, Iterable
+from os import PathLike
 from . import consts, log, time
 from .execute import Executable, subprocess_stream
 from .versioning import Version
-
-PathLike = Union[Path, str]
 
 
 def md5sum(path: PathLike, chunk_size: int = 8192) -> str:
@@ -36,7 +38,7 @@ BACKOFF_LIMIT_EXCEEDED_ERROR = 'BackoffLimitExceeded'
 WAIT_TIMEOUT_ERROR = 'timed out waiting for the condition'
 
 
-def kubectl_dump(command: PathLike | Executable, output_file: PathLike, mode: str = 'dry-run') -> None:
+def kubectl_dump(command: PathLike | Executable | str, output_file: PathLike, mode: str = 'dry-run') -> None:
     """Runs kubectl command and saves output to file
 
     :param command: kubectl command to run
@@ -59,37 +61,33 @@ def kubectl_dump(command: PathLike | Executable, output_file: PathLike, mode: st
         os.remove(error_file)
 
 
-def _parse_remote_path(_str: PathLike) -> tuple[str, str]:
+def _parse_remote_path(_str: PathLike | str) -> tuple[str, str]:
     """Parse remote path into host and path parts
 
     :returns: host, path"""
     remote_path = str(_str)
     if not remote_path:
         raise ValueError('Empty string received')
-    cnt = remote_path.count(':')
-    if cnt == 0:
+    if ':' not in remote_path:
         return remote_path, ''
-    if cnt > 1:
-        raise ValueError(f'Invalid remote path: {remote_path}')
-    remote_part, path_part = remote_path.split(':')
+    remote_part, path_part = remote_path.split(':', maxsplit=1)
     path_split = path_part.split()
     if len(path_split) == 0:
         return remote_part, ''
     if len(path_split) == 1:
         return remote_part, path_part
-    return remote_part + ' ' + ' '.join(path_split[1:]), path_split[0]
+    return ' '.join([remote_part, *path_split[1:]]), path_split[0]
 
 
 def kubectl_cp(
-        src: PathLike,
-        dest: PathLike,
+        src: PathLike | str,
+        dest: PathLike | str,
         mode: Optional[str] = 'dry-run',
-        show_cmd=True,
+        show_cmd: bool = True,
         logger: Optional[logging.Logger] = None,
         retries: Optional[int] = 3,
-) -> None:
-    """wrapper on top of `kubectl cp` with more error handling and remote-to-remote transfer functionality. Host must
-    have enough disk to store x2 the content size, as we use local fs to fully store contents before uploading to remote
+) -> int | list[tuple[int, int]]:
+    """wrapper on top of `kubectl cp` with more error handling and remote-to-remote transfer functionality
 
     :param src: source path. Can be local or remote
     :param dest: target path. Can be local or remote
@@ -97,37 +95,47 @@ def kubectl_cp(
     :param show_cmd: if True, logs the commands that are executed
     :param logger: logger object
     :param retries: retry attempts on failure
+    :return: 0 on success, error exit code on failure
+    :except ValueError: if src and dest are local paths
     """
 
-    up_src = dl_src = str(src)
-    up_dest = dl_dest = str(dest)
+    src_str = str(src)
+    dest_str = str(dest)
 
     logger = logger or log.get_logger(name='plain')
 
-    is_download = ':' in str(src)
-    is_upload = ':' in str(dest)
-    if not (is_download or is_upload):
+    is_remote_src = ':' in src_str
+    is_remote_dest = ':' in dest_str
+
+    if not (is_remote_src or is_remote_dest):
         import inspect
-        banner = ('Char ":" not found in source/dest, suggesting they are both local paths. '
-                  f'For local file transfer, please avoid using {inspect.currentframe().f_code.co_name}')
+        banner = (
+            'Char ":" not found in source/dest, suggesting they are both local paths. '
+            f'For local file transfer, please avoid using {inspect.currentframe().f_code.co_name}'
+        )
         logger.warning(banner)
-        raise ValueError(banner) # implementing this encourages bad boundaries, so we error out instead
+        raise ValueError(banner)  # implementing this encourages bad boundaries, so we error out instead
 
-    temp_file = None
-    try:
-        if is_download and is_upload:
-            import tempfile
-            temp_file = dl_dest = up_src = tempfile.NamedTemporaryFile(delete=False).name
-            logger.warning('Both source and target are remote. Downloading to local host first, and then uploading')
-        if is_download:
-            _dl(dl_src, dl_dest, mode=mode, show_=show_cmd, logger=logger, retries=retries)
-        if is_upload:
-            _up(up_src, up_dest, mode=mode, show_=show_cmd, logger=logger, retries=retries)
-    finally:
-        if temp_file and os.path.exists(temp_file):
-            os.remove(temp_file)
+    if is_remote_src and is_remote_dest:
+        return _remote_to_remote(
+            src_str,
+            dest_str,
+            mode=mode or 'normal',
+            show_=show_cmd,
+            logger=logger,
+            retries=retries or 1,
+        )
 
-def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
+    if is_remote_src:
+        return _dl(src_str, dest_str, mode=mode or 'normal', show_=show_cmd, logger=logger, retries=retries or 1)
+
+    if is_remote_dest:
+        return _up(src_str, dest_str, mode=mode or 'normal', show_=show_cmd, logger=logger, retries=retries or 1)
+
+    raise RuntimeError('Unexpected kubectl_cp code path')
+
+
+def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> int:
     remote, s_path = _parse_remote_path(src)
 
     kubectl = Executable('kubectl')
@@ -165,17 +173,103 @@ def _dl(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, ret
         raise OSError(msg)
 
     kubectl.stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
-    return
+    return 0
 
 
-def _up(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> None:
+def _up(src: str, dest: str, mode: str, show_: bool, logger: logging.Logger, retries: int) -> int:
     source_exists = os.path.exists(src)
     if not source_exists and mode != 'dry-run':
         logger.error(f'FileNotFound: {src}')
         raise FileNotFoundError(f'{src} does not exist')
 
     Executable('kubectl').stream(f'cp --{retries=}', src, dest, mode=mode, show_cmd=show_)
-    return
+    return 0
+
+def _remote_to_remote(
+        src: str,
+        dest: str,
+        mode: str,
+        show_: bool,
+        logger: logging.Logger,
+        retries: int,
+) -> int | list(tuple[int, int]):
+    """Copy between two remote pods in arbitrary namespaces without touching local disk
+    """
+
+    src_remote, src_path = _parse_remote_path(src)
+    dest_remote, dest_path = _parse_remote_path(dest)
+
+    if not src_path:
+        logger.error(f'Invalid remote src path: {src!r}')
+        return 1
+
+    src_parent, src_name = os.path.split(src_path)
+    if not src_parent:
+        src_parent = '/'
+
+    if dest_path.endswith('/'):
+        dest_parent = dest_path.rstrip('/') or '/'
+    else:
+        dest_parent = os.path.dirname(dest_path) or '/'
+
+    if mode == 'dry-run':
+        if show_:
+            logger.info(f'DRY-RUN remote->remote: {src_remote}:{src_path} -> {dest_remote}:{dest_path}')
+            logger.info(
+                'DRY-RUN would run:\n'
+                f'  kubectl exec {src_remote} -- tar cf - -C {src_parent} {src_name} | '
+                f'kubectl exec -i {dest_remote} -- tar xf - -C {dest_parent}',
+            )
+        return
+
+    attempt = 0
+    max_attempts = max(1, retries)
+
+    exit_codes = list()
+
+    while True:
+        attempt += 1
+        if show_:
+            logger.info(f'Attempt {attempt}/{max_attempts}: {src_remote}:{src_path} -> {dest_remote}:{dest_path}')
+
+        src_proc = dest_proc = None
+        try:
+            src_proc = subprocess.Popen(
+                ['kubectl', 'exec', *src_remote.split(), '--', 'tar', 'cf', '-', '-C', src_parent, src_name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=False,
+            )
+            dest_proc = subprocess.Popen(
+                ['kubectl', 'exec', '-i', *dest_remote.split(), '--', 'tar', 'xf', '-', '-C', dest_parent],
+                stdin=src_proc.stdout,
+                stderr=subprocess.PIPE,
+                text=False,
+            )
+
+            if src_proc.stdout is not None:  # Allow src_proc to receive SIGPIPE if dest exits early
+                src_proc.stdout.close()
+
+            dest_rc = dest_proc.wait()
+            src_rc = src_proc.wait()
+
+            if src_rc == 0 and dest_rc == 0:
+                return 0
+            exit_codes.append(tuple(src_rc, dest_rc))
+
+            stderr_src = src_proc.stderr.read().decode('utf-8', 'replace') if src_proc.stderr else ''
+            stderr_dest = dest_proc.stderr.read().decode('utf-8', 'replace') if dest_proc.stderr else ''
+
+            logger.error(f'remote->remote copy failed ({src_rc=}, {dest_rc=})\n{stderr_src=}\n{stderr_dest=}')
+
+        finally:  # prevent leaking procs
+            for p in (src_proc, dest_proc):
+                if p and p.poll() is None:
+                    p.kill()
+
+        if attempt >= max_attempts:
+            logger.error(f'remote->remote copy failed after {max_attempts} attempts: {src} -> {dest}')
+            return exit_codes
 
 
 def print_namespace_events(namespace: str) -> None:
@@ -572,7 +666,7 @@ def await_k8s_job_completion(spec: dict, tail: Optional[int] = None) -> bool:
             if len(resp) > 1:
                 logger_plain.info('\n'.join(resp[1:]))
         if response.stderr.startswith(RESOURCE_NOT_FOUND):
-            msg = f'{response.stderr}! Was the job deleted?'
+            msg = f'{response.stderr}\nWas the job deleted?'
             logger.warning(f'{msg}\nEvents:')
             print_namespace_events(namespace)
             raise RuntimeError(msg)
@@ -669,53 +763,6 @@ def scale_resources_to_zero(
             if len(pod_lines) <= 1:
                 break
             pods = '\n'.join(pod_lines[1:])
-
-
-# deprecated
-def _check_gibby_logs_for_container_hang(job_name: str, namespace: str, kubectl: Executable, retries: int,
-                                         logger: logging.Logger) -> int:
-    """Check logs for container hang and delete all running pods if detected
-    :param job_name: job name
-    :param namespace: k8s namespace
-    :param kubectl: kubectl Executable object
-    :param retries: retry count
-    :param logger: logger object
-    :return: updated retry count
-    """
-    # kubectl logs --pod-running-timeout=5m should wait for at least one pod running, but it doesn't for some reason.
-    # added retry as a workaround
-
-    import subprocess
-    logs_cmd = f'logs --selector=job-name={job_name} --since=1m'
-    try:
-        logs = kubectl.run(logs_cmd, show_cmd=False)
-    except subprocess.CalledProcessError:
-        logger.warning(f'Failed to fetch logs for {job_name}\nRetrying...')
-        try:
-            logs = kubectl.run(logs_cmd)
-        except subprocess.CalledProcessError:
-            logger.warning(f'Failed to fetch logs for {job_name}\nFetching namespace events')
-            print_namespace_events(namespace)
-            logger.warning('Retrying one last time before erroring out')
-            logs = kubectl.run(logs_cmd)
-
-    task_failed_msg = 'Task failed and retry limit has been reached'
-    if logs.returncode:
-        logger.warning(f'Failed to fetch logs for {job_name}')
-        raise RuntimeError(logs.stderr)
-    logs = logs.stdout.splitlines()
-    first_error_line = next((i for i, line in enumerate(logs) if task_failed_msg in line), None)
-    if first_error_line:
-        retries -= 1
-        logger.warning(f'Stuckage detected!\n"{task_failed_msg}" found in logs')
-        if not retries:
-            logs = logs[first_error_line:]
-            for line in logs:
-                logger.warning(line)
-            raise RuntimeError(f'"{task_failed_msg}" found in logs of {job_name}: {logs}')
-        logger.warning(f'Optimistically deleting all running pods\nRetries remaining: {retries}')
-        kubectl.stream(f'delete pod --selector=job-name={job_name} --output name --field-selector=status.phase=Running')
-    return retries
 
 
 def get_pod_name_and_job_image(
@@ -834,13 +881,6 @@ def is_path_local(path: str | Path) -> bool:
         return df.run(df_option, path, check=False).returncode == 0
 
     return is_path_local_best_effort(path) # fallback to best effort without `df`
-
-import os
-import platform
-import re
-import subprocess
-from collections import namedtuple
-from typing import Iterable, List, Optional
 
 Partition = namedtuple("Partition", "device mountpoint fstype opts")
 

@@ -69,11 +69,13 @@ KUBE_CONFIG_DEFAULT_LOCATION = os.path.expanduser(os.environ.get('KUBECONFIG', '
 
 class LabelSelectors(metaclass=ConstMeta):
     """Label selectors for Kubernetes resources of Iguazio platform components"""
-    MLRUN_DB = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component=db'
-    MLRUN_DEPLOYMENTS = 'app.kubernetes.io/name=mlrun,app.kubernetes.io/component!=db,app.kubernetes.io/component!=ui'
+    MLRUN_APP = 'app.kubernetes.io/name=mlrun'
+    MLRUN_DB = f'{MLRUN_APP},app.kubernetes.io/component=db'
+    MLRUN_DEPLOYMENTS = f'{MLRUN_APP},app.kubernetes.io/component!=db,app.kubernetes.io/component!=ui'
     MLRUN_JOBS = 'mlrun/class=job'
-    PIPELINES_DB = 'app=pipelines,component=mysql-kf'
-    PIPELINES_DEPLOYMENTS = 'app=pipelines,component!=mysql-kf,component!=ml-pipeline-ui'
+    PIPELINES_APP = 'app=pipelines'
+    PIPELINES_DB = f'{PIPELINES_APP},component=mysql-kf'
+    PIPELINES_DEPLOYMENTS = f'{PIPELINES_APP},component!=mysql-kf,component!=ml-pipeline-ui'
     KEYCLOAK_DB = 'app.kubernetes.io/name=v3io-mysql,app.kubernetes.io/component=keycloak-db'
     KEYCLOAK_STATEFULSETS = 'app.kubernetes.io/name=keycloak'  # noqa: typo
     CONFIGMAPS = 'app.kubernetes.io/managed-by!=Helm,nuclio.io/app!=functionres,!mlrun/class'  # noqa: typo
