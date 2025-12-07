@@ -141,7 +141,7 @@ class _BaseRichHandler(RichHandler):
     def __init__(self, *args, **kwargs):
         kwargs.update({
             'show_path': False,
-            # 'markup': False,  # added for visibility, as this is the default. On k8s events, markup may error out
+            'markup': False,  # added for visibility, as this is the default. On k8s events, markup may error out
         })
         super().__init__(*args, **kwargs)
         self.addFilter(MaskingFilter())
