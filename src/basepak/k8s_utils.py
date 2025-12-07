@@ -299,8 +299,8 @@ def print_namespace_events(namespace: str) -> None:
         cmd = 'alpha events'
     try:
         kubectl.stream(cmd)
-    except:  # noqa called on a best effort basis
-        pass
+    except Exception as e:  # noqa called on a best effort basis
+        log.get_logger(name='plain').debug(e)
 
 
 @functools.lru_cache
