@@ -270,7 +270,7 @@ def _remote_to_remote(
 
             if src_rc == 0 and dest_rc == 0:
                 return 0
-            exit_codes.append(tuple(src_rc, dest_rc))
+            exit_codes.append((src_rc, dest_rc))
 
             stderr_src = src_proc.stderr.read().decode('utf-8', 'replace') if src_proc.stderr else ''
             stderr_dest = dest_proc.stderr.read().decode('utf-8', 'replace') if dest_proc.stderr else ''
