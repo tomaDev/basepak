@@ -251,8 +251,8 @@ def test_is_path_local_best_effort(monkeypatch, mock_partitions, test_path, expe
 @pytest.mark.parametrize(
     'test_path,expected', [
         ('/', True),
-        ('/users', True),
-        ('/users/non-existent-user', False),
+        ('/usr', True),
+        ('/usr/non-existent-user', False),
         ('/nonexistent-mount', False),
     ])
 def test_is_path_local(test_path, expected):
@@ -367,7 +367,7 @@ def test_await_k8s_job_completion_complete_with_fail():
 
 @pytest.mark.parametrize('mode', SUPPORTED_MODES)
 @pytest.mark.parametrize('refresh_rate', (0,10,100))
-def test_prep_binary(mode, tmp_path, refresh_rate):
+def test_prep_binary(mode, tmp_path, refresh_rate, monkeypatch):
     name = 'shred'
     spec = {
         'CACHE_FOLDER': tmp_path,
@@ -375,6 +375,8 @@ def test_prep_binary(mode, tmp_path, refresh_rate):
         'JOB_IMAGE': consts.DEFAULT_IMAGE,
         'PATH_ON_IMAGE': f'/bin/{name}',
     }
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda _: None)
     k8s_utils.prep_binary(mode=mode, spec=spec, name=name, refresh_rate_default=refresh_rate)
 
     if mode != 'dry-run':
